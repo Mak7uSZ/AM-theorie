@@ -7,13 +7,12 @@ return {
 	sourceUrl = "https://wetten.overheid.nl/BWBR0004825/",
 	article = "1; 2 lid 2; 15; 54; 62–64",
 	reviewStatus = "awaiting_review",
-	-- Upload PNGs from assets/theory/voorrang in Studio and paste image IDs here.
-	-- Empty values deliberately display a setup message, never an invented ID.
+	-- Image IDs imported by the owner. Page imageKey fields below stay symbolic.
 	images = {
-		bestuurders = "",
-		rechts = "",
-		onverhard = "",
-		tram = "",
+		bestuurders = "79269872017289",
+		rechts = "115675391659452",
+		onverhard = "104954906824814",
+		tram = "108839172162301",
 	},
 	questionIds = { "cyclist_right_01", "unpaved_01", "tram_demo_01" },
 	sceneIds = { "CyclistRight01", "UnpavedRoad01", "TramCrossing01" },

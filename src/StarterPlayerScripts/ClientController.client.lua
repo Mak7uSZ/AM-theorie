@@ -130,20 +130,24 @@ remote.OnClientEvent:Connect(function(kind, data)
 		status.Text = "CONCEPT — actualiteitscontrole open | Bron: RVV 1990"
 		body.Position, body.Size = UDim2.fromScale(0.04, 0.21), UDim2.fromScale(0.45, 0.43)
 		body.TextXAlignment, body.TextYAlignment = Enum.TextXAlignment.Left, Enum.TextYAlignment.Top
-		local imageId = tostring(Content.images[data.imageKey] or "")
+		-- Accept either a symbolic key or a direct ID pasted into a page.
+		local imageReference = tostring(data.imageKey or "")
+		local imageId = tostring((Content.images or {})[imageReference] or imageReference)
+		imageId = imageId:match("^%s*(.-)%s*$")
 		if imageId:match("^%d+$") then imageId = "rbxassetid://" .. imageId end
 		if imageId:match("^rbxassetid://%d+$") then
 			local picture = Instance.new("ImageLabel")
 			picture.Name, picture.BackgroundTransparency = "TheoryIllustration", 1
 			picture.Position, picture.Size = UDim2.fromScale(0.53, 0.20), UDim2.fromScale(0.43, 0.45)
 			picture.ScaleType, picture.Image, picture.Parent = Enum.ScaleType.Fit, imageId, panel
+			if DEBUG_LOGS then print("[AM Theory][Client] Book image: page=" .. data.page .. " image=" .. imageId) end
 			task.delay(8, function()
 				if picture.Parent and not picture.IsLoaded then
 					warn("[AM Theory][Client] Image not loaded: " .. imageId .. ". Check asset permissions, ID and moderation.")
 				end
 			end)
 		else
-			text(panel, "Illustratie nog niet gekoppeld\n\nUpload " .. data.imageKey .. ".png en vul het afbeeldings-ID in TopicContent.images in.", UDim2.fromScale(0.53, 0.21), UDim2.fromScale(0.43, 0.43))
+			text(panel, "Illustratie niet ingesteld\n\nControleer TopicContent.images. Gebruik op de pagina een sleutel zoals 'bestuurders' of een geldig afbeeldings-ID.", UDim2.fromScale(0.53, 0.21), UDim2.fromScale(0.43, 0.43))
 		end
 		local caption = text(panel, data.captionNl, UDim2.fromScale(0.04, 0.65), UDim2.fromScale(0.92, 0.075))
 		caption:FindFirstChildOfClass("UITextSizeConstraint").MaxTextSize = 13
