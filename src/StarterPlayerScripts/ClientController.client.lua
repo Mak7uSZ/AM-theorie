@@ -8,7 +8,15 @@ local Content = require(ReplicatedStorage:WaitForChild("TopicContent"))
 local remote = ReplicatedStorage:WaitForChild("PrototypeEvent")
 local gui = Instance.new("ScreenGui")
 gui.Name, gui.ResetOnSpawn, gui.IgnoreGuiInset = "AMPrototypeGui", false, false
+gui.DisplayOrder = 10
 gui.Parent = player:WaitForChild("PlayerGui")
+-- Full-bleed menu backdrop is separate from the inset-safe interactive GUI.
+local backdropGui = Instance.new("ScreenGui")
+backdropGui.Name, backdropGui.ResetOnSpawn, backdropGui.IgnoreGuiInset = "AMMenuBackdrop", false, true
+backdropGui.DisplayOrder, backdropGui.Parent = 9, gui.Parent
+local menuBackdrop = Instance.new("Frame")
+menuBackdrop.Size, menuBackdrop.BackgroundColor3 = UDim2.fromScale(1, 1), Color3.fromRGB(14, 22, 35)
+menuBackdrop.BorderSizePixel, menuBackdrop.Parent = 0, backdropGui
 local mode, token, origin = "loading", 0, nil
 local theoryRead, throttle, largeText = false, 0, false
 local shotStarted = 0
@@ -64,19 +72,62 @@ local ridingHud = Instance.new("Frame")
 ridingHud.AnchorPoint, ridingHud.Position = Vector2.new(0.5, 1), UDim2.fromScale(0.5, 0.97)
 ridingHud.Size, ridingHud.BackgroundTransparency, ridingHud.Visible = UDim2.fromScale(0.78, 0.14), 1, false
 ridingHud.Parent = gui
+local decisionAnswers = Instance.new("Frame")
+decisionAnswers.Name, decisionAnswers.BackgroundTransparency, decisionAnswers.Visible = "DecisionAnswers", 1, false
+decisionAnswers.Parent = gui
+local answerList = Instance.new("UIListLayout")
+answerList.Padding, answerList.SortOrder = UDim.new(0, 8), Enum.SortOrder.LayoutOrder
+answerList.Parent = decisionAnswers
+-- BEGIN_DECISION_LAYOUT: reused by the geometry regression test.
+local function measureDecisionLayout(width, height, count)
+	local horizontal = width >= 900 or height < 380
+	local answerHeight = height < 420 and 78 or 64
+	if not horizontal then answerHeight = 52 end
+	local answerWidth = math.min(1120, width - 32)
+	local answersHeight = horizontal and answerHeight or count * answerHeight + (count - 1) * 8
+	local answersY = height - answersHeight - 16
+	local cardHeight = height < 480 and 104 or 136
+	local cardY = math.max(8, math.min(math.floor(height * 0.14), answersY - cardHeight - 24))
+	return {
+		cardWidth = math.min(820, width - 32), cardHeight = cardHeight, cardY = cardY,
+		answersWidth = answerWidth, answersHeight = answersHeight, answersY = answersY,
+		buttonWidth = horizontal and (answerWidth - (count - 1) * 8) / count or answerWidth,
+		buttonHeight = answerHeight, horizontal = horizontal,
+	}
+end
+-- END_DECISION_LAYOUT
+local function refreshDecisionLayout()
+	if mode ~= "question" then return end
+	local size, buttons = gui.AbsoluteSize, {}
+	for _, child in ipairs(decisionAnswers:GetChildren()) do
+		if child:IsA("TextButton") then table.insert(buttons, child) end
+	end
+	if size.X < 1 or size.Y < 1 or #buttons == 0 then return end
+	local layout = measureDecisionLayout(size.X, size.Y, #buttons)
+	panel.AnchorPoint, panel.Position = Vector2.new(0.5, 0), UDim2.new(0.5, 0, 0, layout.cardY)
+	panel.Size = UDim2.fromOffset(layout.cardWidth, layout.cardHeight)
+	decisionAnswers.AnchorPoint = Vector2.new(0.5, 0)
+	decisionAnswers.Position = UDim2.new(0.5, 0, 0, layout.answersY)
+	decisionAnswers.Size = UDim2.fromOffset(layout.answersWidth, layout.answersHeight)
+	answerList.FillDirection = layout.horizontal and Enum.FillDirection.Horizontal or Enum.FillDirection.Vertical
+	for _, answer in ipairs(buttons) do answer.Size = UDim2.fromOffset(layout.buttonWidth, layout.buttonHeight) end
+end
+gui:GetPropertyChangedSignal("AbsoluteSize"):Connect(refreshDecisionLayout)
 local impactFlash = Instance.new("Frame")
 impactFlash.Size, impactFlash.BackgroundColor3 = UDim2.fromScale(1, 1), Color3.fromRGB(160, 40, 30)
 impactFlash.BackgroundTransparency, impactFlash.Visible, impactFlash.ZIndex = 0.65, false, 10
 impactFlash.Parent = gui
 local function heading(title, body)
+	panel.AnchorPoint, panel.BackgroundTransparency = Vector2.new(0.5, 0.5), 0
 	panel.Size, panel.Position = UDim2.fromScale(0.92, 0.82), UDim2.fromScale(0.5, 0.5)
-	ridingHud.Visible = false
+	ridingHud.Visible, decisionAnswers.Visible, status.Visible, menuBackdrop.Visible = false, false, false, false
 	panel:ClearAllChildren()
 	local limit = Instance.new("UISizeConstraint")
 	limit.MaxSize, limit.Parent = Vector2.new(820, 560), panel
 	panel.Visible = true
 	toolbar.Visible = false
-	text(panel, title, UDim2.fromScale(0.04, 0.03), UDim2.fromScale(0.92, 0.13))
+	local titleLabel = text(panel, title, UDim2.fromScale(0.04, 0.03), UDim2.fromScale(0.92, 0.11))
+	titleLabel.Name = "PanelTitle"
 	local content = text(panel, body, UDim2.fromScale(0.06, 0.19), UDim2.fromScale(0.88, 0.48))
 	content:FindFirstChildOfClass("UITextSizeConstraint").MaxTextSize = largeText and 22 or 17
 	return content
@@ -86,6 +137,7 @@ local function restoreCamera()
 	vehicle, sceneName, viewPosition = nil, nil, nil
 	firstPerson, looking, lookLeft, lookRight = false, false, false, false
 	ridingHud.Visible, impactFlash.Visible = false, false
+	decisionAnswers.Visible, menuBackdrop.Visible = false, false
 	throttle = 0
 	local camera = workspace.CurrentCamera
 	camera.CameraType = Enum.CameraType.Custom
@@ -103,6 +155,7 @@ local function showLobby()
 	mode = "lobby"
 	restoreCamera()
 	panel.Visible, toolbar.Visible = false, true
+	status.Visible = true
 	status.Text = theoryRead and "Voorrang: klaar voor training | voortgang alleen in deze sessie" or "Loop naar de blauwe theoriecirkel | voortgang alleen in deze sessie"
 end
 local showMenu
@@ -119,6 +172,7 @@ local function overlay(kind, fromMenu)
 			toggle.Text = largeText and "Grote tekst: AAN" or "Grote tekst: UIT"
 		end)
 	end
+	menuBackdrop.Visible = fromMenu
 	button(panel, "Terug", 0.3, 0.84, 0.4, function()
 		if fromMenu then showMenu() else send("Overlay", false); showLobby() end
 	end)
@@ -128,6 +182,7 @@ showMenu = function()
 	restoreCamera()
 	status.Text = "AM Theory Simulator | technisch prototype"
 	heading("AM Theory Simulator", "Voorrang — eerste leerinhoud\n\nLees het geïllustreerde boek en probeer 3 oefenscènes: fietser van rechts, onverharde weg en tram.\n\nConcept: actualiteitscontrole open. Geen officiële CBR-les.")
+	menuBackdrop.Visible, panel.BackgroundTransparency = true, 1
 	button(panel, "Spelen", 0.3, 0.68, 0.4, function() send("Play") end)
 	button(panel, "Instellingen", 0.08, 0.84, 0.38, function() overlay("settings", true) end)
 	button(panel, "Voortgang", 0.54, 0.84, 0.38, function() overlay("progress", true) end)
@@ -160,8 +215,9 @@ remote.OnClientEvent:Connect(function(kind, data)
 	elseif kind == "Book" then
 		mode = "book"
 		local body = heading(data.titleNl .. " | " .. data.page .. "/" .. data.total, data.text)
-		status.Text = "CONCEPT — actualiteitscontrole open | Bron: RVV 1990"
-		body.Position, body.Size = UDim2.fromScale(0.04, 0.21), UDim2.fromScale(0.45, 0.43)
+		local source = text(panel, "CONCEPT • actualiteitscontrole open • Bron: RVV 1990", UDim2.fromScale(0.04, 0.15), UDim2.fromScale(0.92, 0.04))
+		source:FindFirstChildOfClass("UITextSizeConstraint").MaxTextSize = 12
+		body.Position, body.Size = UDim2.fromScale(0.04, 0.23), UDim2.fromScale(0.45, 0.39)
 		body.TextXAlignment, body.TextYAlignment = Enum.TextXAlignment.Left, Enum.TextYAlignment.Top
 		-- Accept either a symbolic key or a direct ID pasted into a page.
 		local imageReference = tostring(data.imageKey or "")
@@ -171,7 +227,7 @@ remote.OnClientEvent:Connect(function(kind, data)
 		if imageId:match("^rbxassetid://%d+$") then
 			local picture = Instance.new("ImageLabel")
 			picture.Name, picture.BackgroundTransparency = "TheoryIllustration", 1
-			picture.Position, picture.Size = UDim2.fromScale(0.53, 0.20), UDim2.fromScale(0.43, 0.45)
+			picture.Position, picture.Size = UDim2.fromScale(0.53, 0.23), UDim2.fromScale(0.43, 0.39)
 			picture.ScaleType, picture.Image, picture.Parent = Enum.ScaleType.Fit, imageId, panel
 			if DEBUG_LOGS then print("[AM Theory][Client] Book image: page=" .. data.page .. " image=" .. imageId) end
 			task.delay(8, function()
@@ -182,7 +238,7 @@ remote.OnClientEvent:Connect(function(kind, data)
 		else
 			text(panel, "Illustratie niet ingesteld\n\nControleer TopicContent.images. Gebruik op de pagina een sleutel zoals 'bestuurders' of een geldig afbeeldings-ID.", UDim2.fromScale(0.53, 0.21), UDim2.fromScale(0.43, 0.43))
 		end
-		local caption = text(panel, data.captionNl, UDim2.fromScale(0.04, 0.65), UDim2.fromScale(0.92, 0.075))
+		local caption = text(panel, data.captionNl, UDim2.fromScale(0.04, 0.64), UDim2.fromScale(0.92, 0.08))
 		caption:FindFirstChildOfClass("UITextSizeConstraint").MaxTextSize = 13
 		local back = button(panel, "Vorige", 0.05, 0.75, 0.26, function() send("Page", -1) end)
 		back.Visible = data.page > 1
@@ -203,6 +259,7 @@ remote.OnClientEvent:Connect(function(kind, data)
 		yaw, pitch = 0, math.rad(-6)
 		UserInputService.MouseBehavior = Enum.MouseBehavior.Default
 		panel.Visible, toolbar.Visible, ridingHud.Visible, impactFlash.Visible = false, false, false, false
+		decisionAnswers.Visible, menuBackdrop.Visible, status.Visible = false, false, true
 		camera.CameraType = Enum.CameraType.Scriptable
 		status.Text = string.format("Scène %d/%d: %s (4 seconden) | CONCEPT", data.index, data.total, data.titleNl)
 	elseif kind == "Approach" then
@@ -210,19 +267,26 @@ remote.OnClientEvent:Connect(function(kind, data)
 		vehicle, sceneName = data.vehicle, data.sceneName
 		workspace.CurrentCamera.FieldOfView = 80
 		panel.Visible, toolbar.Visible, ridingHud.Visible = false, false, true
+		status.Visible = true
 		status.Text = "Jouw beurt: rijd naar het kruispunt. Daar neem je een beslissing."
 	elseif kind == "Question" then
 		mode, throttle = "question", 0
-		heading(string.format("%d/%d — %s | CONCEPT", data.index, data.total, data.titleNl), data.prompt)
-		-- Keep the first-person road view visible next to the decision card.
-		panel.Size, panel.Position = UDim2.fromScale(0.40, 0.68), UDim2.fromScale(0.78, 0.55)
-		status.Text = "Beslispunt: kies wat je doet. Q / E of rechtermuisknop: rondkijken."
+		local prompt = heading(string.format("%d/%d — %s", data.index, data.total, data.titleNl), data.prompt)
+		panel.BackgroundTransparency = 0.55
+		prompt.Position, prompt.Size = UDim2.fromScale(0.04, 0.28), UDim2.fromScale(0.92, 0.66)
+		prompt.TextStrokeTransparency = 0.55
+		for _, child in ipairs(decisionAnswers:GetChildren()) do if child:IsA("TextButton") then child:Destroy() end end
 		for index, option in ipairs(data.options) do
-			button(panel, option, 0.06, 0.64 + (index - 1) * 0.115, 0.88, function() send("Answer", index) end)
+			local answer = button(decisionAnswers, option, 0, 0, 1, function() send("Answer", index) end)
+			answer.LayoutOrder, answer.BackgroundTransparency, answer.TextStrokeTransparency = index, 0.4, 0.6
 		end
+		decisionAnswers.Visible = true
+		refreshDecisionLayout()
+		task.defer(refreshDecisionLayout)
 	elseif kind == "Outcome" then
 		mode, throttle = "outcome", 0
 		panel.Visible, ridingHud.Visible = false, false
+		decisionAnswers.Visible, status.Visible = false, true
 		local actions = { yield = "Je wacht en laat de ander voorgaan.", drive = "Je rijdt door zonder voorrang te verlenen.", rush = "Je versnelt om er nog vóór te komen." }
 		status.Text = "Automatisch vervolg: " .. actions[data.branch]
 	elseif kind == "Impact" then
@@ -246,6 +310,7 @@ remote.OnClientEvent:Connect(function(kind, data)
 		restoreCamera()
 		panel.Visible, toolbar.Visible = false, false
 		status.Text = "Opnieuw verschijnen…"
+		status.Visible = true
 	end
 end)
 UserInputService.InputBegan:Connect(function(input, processed)
