@@ -12,6 +12,13 @@ world.Name = "AMPrototype"
 world.Parent = workspace
 local sessions = {}
 local DWELL = 5
+local DEBUG_LOGS = true
+local function trace(player, event, details)
+	if not DEBUG_LOGS then return end
+	local s = sessions[player]
+	print(string.format("[AM Theory][Server][%s:%d][phase=%s][session=%s] %s %s",
+		player.Name, player.UserId, s and s.phase or "none", s and s.token or 0, event, details or ""))
+end
 local function part(parent, name, size, position, color)
 	local p = Instance.new("Part")
 	p.Name, p.Size, p.Position = name, size, position
@@ -22,13 +29,16 @@ local function part(parent, name, size, position, color)
 end
 local function label(p, text)
 	local gui = Instance.new("BillboardGui")
-	gui.Size, gui.StudsOffset = UDim2.fromOffset(360, 85), Vector3.new(0, 4, 0)
-	gui.AlwaysOnTop, gui.MaxDistance = true, 90
+	-- Scale components are world studs: signs shrink with distance.
+	gui.Size, gui.StudsOffset = UDim2.fromScale(9, 2.4), Vector3.new(0, 3, 0)
+	gui.AlwaysOnTop, gui.MaxDistance = false, 55
 	gui.Parent = p
 	local t = Instance.new("TextLabel")
 	t.Size, t.BackgroundTransparency = UDim2.fromScale(1, 1), 0.15
 	t.BackgroundColor3, t.TextColor3 = Color3.fromRGB(22, 28, 43), Color3.new(1, 1, 1)
-	t.TextSize, t.TextWrapped, t.Text = 20, true, text
+	t.TextScaled, t.TextWrapped, t.Text = true, true, text
+	local limit = Instance.new("UITextSizeConstraint")
+	limit.MinTextSize, limit.MaxTextSize, limit.Parent = 8, 18, t
 	t.Parent = gui
 end
 part(world, "LobbyFloor", Vector3.new(80, 1, 70), Vector3.new(0, 0, 0), Color3.fromRGB(64, 79, 91))
@@ -47,9 +57,35 @@ for _, definition in ipairs({
 	pads[definition[1]] = p
 end
 local wall = part(world, "LeaderboardWall", Vector3.new(30, 9, 1), Vector3.new(0, 5, -26), Color3.fromRGB(28, 38, 58))
-label(wall, "Oefenexamen Leaderboard — Coming Later\nPreview: nog geen scores")
+local wallGui = Instance.new("SurfaceGui")
+wallGui.Face, wallGui.CanvasSize = Enum.NormalId.Back, Vector2.new(900, 270)
+wallGui.Parent = wall
+local wallText = Instance.new("TextLabel")
+wallText.Size, wallText.BackgroundTransparency = UDim2.fromScale(1, 1), 1
+wallText.TextColor3, wallText.TextSize = Color3.new(1, 1, 1), 30
+wallText.TextWrapped = true
+wallText.Text = "Oefenexamen Leaderboard\nComing Later\nPreview: nog geen scores"
+wallText.Parent = wallGui
 
 local function send(player, kind, data)
+	local s = sessions[player]
+	if kind == "Countdown" then
+		local marker = data.active and data.seconds or "reset"
+		if s and marker ~= s.lastCountdown then
+			trace(player, "Countdown", "pad=" .. tostring(s.pad) .. " value=" .. tostring(marker))
+			s.lastCountdown = marker
+		end
+	else
+		local details = ""
+		if kind == "Book" then details = string.format("page=%d/%d", data.page, data.total)
+		elseif kind == "Question" then details = "question=tram_demo_01 options=" .. #data.options
+		elseif kind == "AnswerFeedback" then details = "question=tram_demo_01 correct=" .. tostring(data.correct)
+		elseif kind == "Result" then
+			details = string.format("question=tram_demo_01 knowledge=%s action=%s reason=%s", tostring(data.knowledge), tostring(data.action), data.reason)
+		elseif kind == "Lobby" then details = "theoryRead=" .. tostring(data.theoryRead)
+		elseif kind == "Notice" then details = data end
+		trace(player, "Send:" .. kind, details)
+	end
 	remote:FireClient(player, kind, data)
 end
 local function characterParts(player)
@@ -82,6 +118,7 @@ local function lobby(player, s)
 	send(player, "Lobby", { theoryRead = s.theoryRead })
 end
 local function result(player, s, passed, reason)
+	trace(player, "ActionOutcome", string.format("z=%.2f speed=%.2f elapsed=%.2f", s.block.Position.Z - s.origin.Z, s.speed, s.actionTime))
 	s.phase, s.throttle = "result", 0
 	send(player, "Result", { knowledge = s.knowledge, action = passed, reason = reason })
 end
@@ -116,6 +153,7 @@ local function setupPlayer(player)
 	if sessions[player] then return end
 	local s = { phase = "menu", started = false, theoryRead = false, token = 0, lastRemote = 0, dwell = 0 }
 	sessions[player] = s
+	trace(player, "Join")
 	player.RespawnLocation = spawn
 	local function spawned(character)
 		clearDwell(player, s)
@@ -141,6 +179,7 @@ Players.PlayerAdded:Connect(setupPlayer)
 for _, player in ipairs(Players:GetPlayers()) do setupPlayer(player) end
 Players.PlayerRemoving:Connect(function(player)
 	local s = sessions[player]
+	trace(player, "Leave", "scene cleaned up; session-only progress discarded")
 	if s then clearScene(s) end
 	sessions[player] = nil
 end)
@@ -156,6 +195,10 @@ remote.OnServerEvent:Connect(function(player, command, value, token)
 	s.lastRemote = now
 	local root, humanoid = characterParts(player)
 	if not root or not humanoid or humanoid.Health <= 0 then return end
+	if command ~= "Drive" then
+		local scalar = type(value) == "number" or type(value) == "boolean"
+		trace(player, "Request:" .. command, "value=" .. (scalar and tostring(value) or type(value)))
+	end
 	if command == "Sync" then
 		if s.phase == "menu" then send(player, "Menu")
 		elseif s.phase == "lobby" then send(player, "Lobby", { theoryRead = s.theoryRead }) end
@@ -175,7 +218,10 @@ remote.OnServerEvent:Connect(function(player, command, value, token)
 		s.theoryRead = true
 		lobby(player, s)
 	elseif command == "Answer" and s.phase == "question" and token == s.token then
-		if type(value) ~= "number" or value % 1 ~= 0 or value < 1 or value > #options then return end
+		if type(value) ~= "number" or value % 1 ~= 0 or value < 1 or value > #options then
+			trace(player, "Reject:Answer", "invalid option index")
+			return
+		end
 		s.knowledge, s.phase = value == 2, "answered"
 		send(player, "AnswerFeedback", { correct = s.knowledge,
 			text = value == 2 and "Goed: dit is de opdracht van de demo." or "De opdracht is: stop het hele blok in het gele vak vóór de witte lijn." })
@@ -184,9 +230,16 @@ remote.OnServerEvent:Connect(function(player, command, value, token)
 		s.lastDrive = now
 		send(player, "Action")
 	elseif command == "Drive" and s.phase == "action" and token == s.token and (value == 0 or value == 1) then
+		if s.throttle ~= value then trace(player, "Drive", value == 1 and "accelerate" or "brake") end
 		s.throttle, s.lastDrive = value, now
 	elseif command == "Return" and (s.phase == "result" or s.phase == "action" or s.phase == "question" or s.phase == "answered" or s.phase == "cinematic") and token == s.token then
 		lobby(player, s)
+	else
+		-- Limit diagnostics for stale/invalid requests, including drive keepalives.
+		if not s.lastReject or now - s.lastReject >= 1 then
+			s.lastReject = now
+			trace(player, "Reject:" .. command, "wrong phase, token or payload")
+		end
 	end
 end)
 
@@ -219,6 +272,7 @@ RunService.Heartbeat:Connect(function(dt)
 				s.dwell = os.clock() - s.since
 				send(player, "Countdown", { active = true, seconds = math.max(0, math.ceil(DWELL - s.dwell)) })
 				if s.dwell >= DWELL then
+					trace(player, "DwellComplete", "pad=" .. found)
 					if found == "Theory" then
 						clearDwell(player, s)
 						s.phase, s.page = "book", 1
@@ -237,16 +291,23 @@ RunService.Heartbeat:Connect(function(dt)
 		elseif s.phase == "action" then
 			local step = math.min(dt, 0.1)
 			s.actionTime += dt
-			if os.clock() - s.lastDrive > 0.5 then s.throttle = 0 end
+			if os.clock() - s.lastDrive > 0.5 and s.throttle ~= 0 then
+				trace(player, "DriveTimeout", "automatic brake: no input for 0.5s")
+				s.throttle = 0
+			end
 			s.speed = math.clamp(s.speed + (s.throttle == 1 and 8 or -20) * step, 0, 12)
 			s.block.Position -= Vector3.new(0, 0, s.speed * step)
 			local z = s.block.Position.Z - s.origin.Z
 			-- Front of the four-stud block must remain behind the stop line at z=2.
 			if z - 2 <= 2.25 then result(player, s, false, "Je blok is over de witte lijn gereden.")
 			elseif z >= 5 and z <= 7 and s.speed < 0.1 then
+				if s.stopped == 0 then trace(player, "StopCheck", "stationary inside target zone; holding for 1s") end
 				s.stopped += step
 				if s.stopped >= 1 then result(player, s, true, "Je stond één seconde stil in het gele vak, vóór de lijn.") end
-			else s.stopped = 0 end
+			else
+				if s.stopped > 0 then trace(player, "StopCheck", "hold reset: moved or left target zone") end
+				s.stopped = 0
+			end
 			if s.phase == "action" and s.actionTime >= 25 then result(player, s, false, "De oefentijd is voorbij. Probeer opnieuw.") end
 		end
 	end

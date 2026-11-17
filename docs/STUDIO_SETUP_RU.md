@@ -5,7 +5,7 @@
 1. Установите Roblox Studio с https://create.roblox.com/ и войдите в свой аккаунт. [Официальная инструкция](https://create.roblox.com/docs/studio/setup).
 2. Создайте новый проект по шаблону **Baseplate**.
 3. В меню **Window** откройте **Explorer**, **Properties**, **Output**. В некоторых раскладках эти команды также доступны на вкладках Home/View. Explorer показывает дерево объектов, Properties — настройки выбранного объекта, Output — сообщения и ошибки.
-4. Через **File → Save to File / Save to File As** сохраните проект как `studio/AMTheoryPrototype.rbxl` внутри папки репозитория. Если редактор предлагает облачное сохранение, выберите вариант сохранения на компьютер. Название команды может различаться между версиями Studio.
+4. Через **File → Download a Copy** сохраните проект как `studio/AMTheoryPrototype.rbxl` внутри папки репозитория. Именно этот пункт показан в вашей версии Studio; в других версиях он может называться Save to File / Save to File As.
 5. В Explorer наведите мышь на **Workspace**, нажмите **⊕**, найдите **Part**. В Properties включите **Anchored** — деталь не будет падать. После этой пробы удалите именно созданную вами деталь.
 6. Наведите мышь на **ServerScriptService → ⊕ → Script**. Назовите его `HelloStudio`. Откройте двойным щелчком, замените весь текст:
 

@@ -11,14 +11,24 @@ gui.Parent = player:WaitForChild("PlayerGui")
 local mode, token, origin = "loading", 0, nil
 local theoryRead, throttle, largeText = false, 0, false
 local shotStarted = 0
+local DEBUG_LOGS = true
+local function fitText(object, maximum)
+	object.TextScaled = true
+	local limit = Instance.new("UITextSizeConstraint")
+	limit.MinTextSize, limit.MaxTextSize, limit.Parent = 10, maximum, object
+end
 local function send(command, value)
+	if DEBUG_LOGS and command ~= "Drive" then
+		print(string.format("[AM Theory][Client][mode=%s][session=%d] Request:%s value=%s", mode, token, command, tostring(value)))
+	end
 	remote:FireServer(command, value, token)
 end
 local function text(parent, value, position, size)
 	local t = Instance.new("TextLabel")
 	t.Position, t.Size = position, size
 	t.BackgroundTransparency, t.TextColor3 = 1, Color3.new(1, 1, 1)
-	t.Font, t.TextSize, t.TextWrapped = Enum.Font.Gotham, 20, true
+	t.Font, t.TextSize, t.TextWrapped = Enum.Font.Gotham, 18, true
+	fitText(t, 18)
 	t.Text, t.Parent = value, parent
 	return t
 end
@@ -26,7 +36,8 @@ local function button(parent, caption, x, y, width, callback)
 	local b = Instance.new("TextButton")
 	b.Position, b.Size = UDim2.fromScale(x, y), UDim2.fromScale(width, 0.1)
 	b.BackgroundColor3, b.TextColor3 = Color3.fromRGB(38, 113, 164), Color3.new(1, 1, 1)
-	b.Font, b.TextSize, b.TextWrapped = Enum.Font.GothamBold, 18, true
+	b.Font, b.TextSize, b.TextWrapped = Enum.Font.GothamBold, 16, true
+	fitText(b, 16)
 	b.Text, b.Parent = caption, parent
 	local corner = Instance.new("UICorner")
 	corner.Parent = b
@@ -39,7 +50,8 @@ panel.Size, panel.BackgroundColor3 = UDim2.fromScale(0.92, 0.82), Color3.fromRGB
 panel.Parent = gui
 local constraint = Instance.new("UISizeConstraint")
 constraint.MaxSize, constraint.Parent = Vector2.new(820, 560), panel
-local status = text(gui, "Verbinden…", UDim2.fromScale(0.12, 0.01), UDim2.fromScale(0.76, 0.08))
+local status = text(gui, "Verbinden…", UDim2.fromScale(0.12, 0.10), UDim2.fromScale(0.76, 0.07))
+status:FindFirstChildOfClass("UITextSizeConstraint").MaxTextSize = 14
 status.BackgroundTransparency, status.BackgroundColor3 = 0.1, Color3.fromRGB(20, 29, 44)
 local toolbar = Instance.new("Frame")
 toolbar.Size, toolbar.Position, toolbar.BackgroundTransparency = UDim2.fromScale(0.65, 0.12), UDim2.fromScale(0.18, 0.86), 1
@@ -52,7 +64,7 @@ local function heading(title, body)
 	toolbar.Visible = false
 	text(panel, title, UDim2.fromScale(0.04, 0.03), UDim2.fromScale(0.92, 0.13))
 	local content = text(panel, body, UDim2.fromScale(0.06, 0.19), UDim2.fromScale(0.88, 0.48))
-	content.TextSize = largeText and 26 or 20
+	content:FindFirstChildOfClass("UITextSizeConstraint").MaxTextSize = largeText and 22 or 17
 	return content
 end
 local function restoreCamera()
@@ -103,6 +115,9 @@ local progressButton = button(toolbar, "Voortgang", 0.52, 0, 0.48, function() ov
 settingsButton.Size, progressButton.Size = UDim2.fromScale(0.48, 1), UDim2.fromScale(0.48, 1)
 
 remote.OnClientEvent:Connect(function(kind, data)
+	if DEBUG_LOGS and kind ~= "Countdown" and kind ~= "Notice" then
+		print(string.format("[AM Theory][Client][mode=%s][session=%d] Receive:%s", mode, token, kind))
+	end
 	if kind == "Menu" then showMenu()
 	elseif kind == "Lobby" then theoryRead = data.theoryRead; showLobby()
 	elseif kind == "Countdown" then
@@ -140,7 +155,7 @@ remote.OnClientEvent:Connect(function(kind, data)
 		local instructions = heading("Stop vóór de witte lijn", "W / ↑ / Vooruit: rijden. Loslaten / Spatie / Rem: remmen.\nStop 1 seconde in het gele vak. Eenheden: studs, geen km/h.")
 		-- Keep the road visible above a compact control panel.
 		panel.Size, panel.Position = UDim2.fromScale(0.92, 0.36), UDim2.fromScale(0.5, 0.78)
-		instructions.TextSize = 17
+		instructions:FindFirstChildOfClass("UITextSizeConstraint").MaxTextSize = 15
 		local forward = button(panel, "Vooruit (vasthouden)", 0.04, 0.73, 0.44)
 		forward.Size = UDim2.fromScale(0.44, 0.22)
 		forward.InputBegan:Connect(function(input)
