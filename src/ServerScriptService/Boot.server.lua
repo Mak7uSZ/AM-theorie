@@ -13,11 +13,33 @@ world.Parent = workspace
 local sessions = {}
 local DWELL = 5
 local DEBUG_LOGS = true
+-- Server-only original questions. Public metadata contains IDs, never keys.
+local scenarios = {
+	{
+		id = "cyclist_right_01", titleNl = "Fietser van rechts", actorKind = "bicycle", startX = 30, laneZ = -9.5,
+		prompt = "Je nadert op je bromfiets een gelijkwaardig kruispunt van twee verharde wegen. Een fietser komt van rechts en rijdt rechtdoor. Er zijn geen voorrangstekens of werkende verkeerslichten. Aan wie verleen je voorrang?",
+		options = { "Aan niemand: een bromfiets gaat vóór een fiets.", "Aan de fietser die van rechts komt.", "Alleen aan auto's van rechts." },
+		correct = 2, explanationNl = "De fietser is een bestuurder die voor jou van rechts komt. Je verleent de fietser voorrang.",
+	},
+	{
+		id = "unpaved_01", titleNl = "Van onverhard naar verhard", actorKind = "car", startX = -30, laneZ = -3.5, unpaved = true,
+		prompt = "Je rijdt op een onverharde weg naar een kruispunt. Van links komt een auto op de verharde weg. Er zijn geen voorrangstekens of werkende verkeerslichten. Wat doe je?",
+		options = { "Ik verleen de auto op de verharde weg voorrang.", "Ik rijd eerst, omdat de auto van links komt.", "Ik rijd eerst, omdat ik op een bromfiets rijd." },
+		correct = 1, explanationNl = "Bestuurders op een onverharde weg verlenen voorrang aan bestuurders op een verharde weg, ook als die van links komen.",
+	},
+	{
+		id = "tram_demo_01", titleNl = "Tram van links", actorKind = "tram", startX = -30, laneZ = -6.5,
+		prompt = "Je nadert een kruispunt zonder voorrangsregeling, werkende verkeerslichten of verkeersregelaar. Een tram komt van links. Wat doe je?",
+		options = { "Ik rijd eerst, omdat de tram van links komt.", "Ik rijd eerst, omdat de tram groter is.", "Ik verleen de tram voorrang." },
+		correct = 3, explanationNl = "Bij deze ongeregelde kruising verleen je de tram voorrang, ook als de tram van links komt. Dit betekent niet dat een tram in iedere situatie voorrang heeft.",
+	},
+}
 local function trace(player, event, details)
 	if not DEBUG_LOGS then return end
 	local s = sessions[player]
-	print(string.format("[AM Theory][Server][%s:%d][phase=%s][session=%s] %s %s",
-		player.Name, player.UserId, s and s.phase or "none", s and s.token or 0, event, details or ""))
+	print(string.format("[AM Theory][Server][%s:%d][phase=%s][session=%s][question=%s] %s %s",
+		player.Name, player.UserId, s and s.phase or "none", s and s.token or 0,
+		s and s.definition and s.definition.id or "none", event, details or ""))
 end
 local function part(parent, name, size, position, color)
 	local p = Instance.new("Part")
@@ -78,15 +100,22 @@ local function send(player, kind, data)
 	else
 		local details = ""
 		if kind == "Book" then details = string.format("page=%d/%d", data.page, data.total)
-		elseif kind == "Question" then details = "question=tram_demo_01 options=" .. #data.options
-		elseif kind == "AnswerFeedback" then details = "question=tram_demo_01 correct=" .. tostring(data.correct)
+		elseif kind == "Question" then details = "options=" .. #data.options
+		elseif kind == "AnswerFeedback" then details = "correct=" .. tostring(data.correct)
 		elseif kind == "Result" then
-			details = string.format("question=tram_demo_01 knowledge=%s action=%s reason=%s", tostring(data.knowledge), tostring(data.action), data.reason)
+			details = string.format("knowledge=%s action=%s reason=%s", tostring(data.knowledge), tostring(data.action), data.reason)
 		elseif kind == "Lobby" then details = "theoryRead=" .. tostring(data.theoryRead)
 		elseif kind == "Notice" then details = data end
 		trace(player, "Send:" .. kind, details)
 	end
 	remote:FireClient(player, kind, data)
+end
+local function sendBook(player, s)
+	local page = Content.pages[s.page]
+	send(player, "Book", {
+		page = s.page, total = #Content.pages, titleNl = page.titleNl, text = page.text,
+		imageKey = page.imageKey, captionNl = page.captionNl, reviewStatus = Content.reviewStatus,
+	})
 end
 local function characterParts(player)
 	local c = player.Character
@@ -98,7 +127,7 @@ local function clearDwell(player, s)
 end
 local function clearScene(s)
 	if s.scene then s.scene:Destroy() end
-	s.scene, s.block, s.tram, s.origin = nil, nil, nil, nil
+	s.scene, s.block, s.actor, s.origin = nil, nil, nil, nil
 	s.slot, s.throttle, s.speed = nil, 0, 0
 end
 local function moveCharacter(player, position, frozen)
@@ -113,6 +142,7 @@ end
 local function lobby(player, s)
 	clearDwell(player, s)
 	clearScene(s)
+	s.definition, s.sceneIndex, s.results = nil, nil, nil
 	s.phase = "lobby"
 	moveCharacter(player, Vector3.new(0, 5, 19), false)
 	send(player, "Lobby", { theoryRead = s.theoryRead })
@@ -120,10 +150,63 @@ end
 local function result(player, s, passed, reason)
 	trace(player, "ActionOutcome", string.format("z=%.2f speed=%.2f elapsed=%.2f", s.block.Position.Z - s.origin.Z, s.speed, s.actionTime))
 	s.phase, s.throttle = "result", 0
-	send(player, "Result", { knowledge = s.knowledge, action = passed, reason = reason })
+	s.results[s.sceneIndex] = { knowledge = s.knowledge, action = passed }
+	local knowledgeCount, actionCount = 0, 0
+	for _, score in pairs(s.results) do
+		if score.knowledge then knowledgeCount += 1 end
+		if score.action then actionCount += 1 end
+	end
+	send(player, "Result", {
+		knowledge = s.knowledge, action = passed, reason = reason, titleNl = s.definition.titleNl,
+		index = s.sceneIndex, total = #scenarios, knowledgeCount = knowledgeCount, actionCount = actionCount,
+	})
 end
-local function beginScene(player, s)
+local function createActor(parent, definition, origin)
+	local model = Instance.new("Model")
+	model.Name, model.Parent = definition.actorKind, parent
+	local color = definition.actorKind == "tram" and Color3.fromRGB(245, 195, 40) or Color3.fromRGB(210, 70, 60)
+	local size = definition.actorKind == "tram" and Vector3.new(14, 6, 5) or Vector3.new(7, 2, 3.5)
+	if definition.actorKind == "bicycle" then size = Vector3.new(4.5, 0.35, 0.5) end
+	local height = definition.actorKind == "tram" and 4 or 2.5
+	local pivot = origin + Vector3.new(0, height, 0)
+	local body = part(model, "Body", size, pivot, color)
+	model.PrimaryPart = body
+	if definition.actorKind == "bicycle" then
+		for _, x in ipairs({ -1.7, 1.7 }) do
+			local wheel = part(model, "Wheel", Vector3.new(0.25, 2.2, 2.2), pivot + Vector3.new(x, -0.7, 0), Color3.fromRGB(24, 28, 32))
+			wheel.Shape, wheel.Orientation = Enum.PartType.Cylinder, Vector3.new(0, 90, 0)
+		end
+		part(model, "Rider", Vector3.new(1, 1.6, 0.8), pivot + Vector3.new(0, 1.1, 0), Color3.fromRGB(230, 160, 45))
+		local head = part(model, "Helmet", Vector3.new(1.1, 1.1, 1.1), pivot + Vector3.new(0, 2.5, 0), Color3.fromRGB(235, 235, 230))
+		head.Shape = Enum.PartType.Ball
+	elseif definition.actorKind == "car" then
+		part(model, "Cabin", Vector3.new(3.5, 1.4, 3), pivot + Vector3.new(0, 1.5, 0), Color3.fromRGB(130, 190, 215))
+		for _, x in ipairs({ -2.2, 2.2 }) do
+			for _, z in ipairs({ -1.8, 1.8 }) do
+				local wheel = part(model, "Wheel", Vector3.new(0.35, 1.4, 1.4), pivot + Vector3.new(x, -1, z), Color3.fromRGB(25, 25, 28))
+				wheel.Shape, wheel.Orientation = Enum.PartType.Cylinder, Vector3.new(0, 90, 0)
+			end
+		end
+		for _, z in ipairs({ -1, 1 }) do
+			part(model, "Headlight", Vector3.new(0.1, 0.5, 0.7), pivot + Vector3.new(3.55, 0, z), Color3.fromRGB(250, 235, 150))
+		end
+	else
+		for _, x in ipairs({ -4, 0, 4 }) do
+			part(model, "Window", Vector3.new(2.6, 2.1, 0.1), pivot + Vector3.new(x, 0.7, 2.55), Color3.fromRGB(65, 115, 145))
+		end
+	end
+	return model, height
+end
+local function positionActor(s, x)
+	s.actor:PivotTo(CFrame.new(s.origin + Vector3.new(x, s.actorHeight, s.definition.laneZ)))
+end
+local function beginScene(player, s, index)
 	clearDwell(player, s)
+	clearScene(s)
+	s.sceneIndex = index or 1
+	s.definition = scenarios[s.sceneIndex]
+	s.results = s.results or {}
+	s.knowledge = false
 	local occupied = {}
 	for _, other in pairs(sessions) do if other.slot then occupied[other.slot] = true end end
 	local slot = 1
@@ -133,20 +216,25 @@ local function beginScene(player, s)
 	s.phase, s.sceneTime = "cinematic", 0
 	s.origin = Vector3.new(slot * 160, 0, 200)
 	s.scene = Instance.new("Folder")
-	s.scene.Name, s.scene.Parent = "Tram_" .. player.UserId, world
+	s.scene.Name, s.scene.Parent = s.definition.id .. "_" .. player.UserId, world
 	local o = s.origin
 	part(s.scene, "Ground", Vector3.new(85, 1, 85), o, Color3.fromRGB(65, 85, 65))
-	part(s.scene, "Road", Vector3.new(12, 0.2, 60), o + Vector3.new(0, 0.6, 4), Color3.fromRGB(45, 45, 50))
-	part(s.scene, "StopZone", Vector3.new(10, 0.1, 6), o + Vector3.new(0, 0.8, 6), Color3.fromRGB(190, 155, 35))
-	part(s.scene, "StopLine", Vector3.new(12, 0.2, 0.5), o + Vector3.new(0, 0.9, 2), Color3.new(1, 1, 1))
-	for _, z in ipairs({ -5, -8 }) do
-		part(s.scene, "Rail", Vector3.new(75, 0.2, 0.3), o + Vector3.new(0, 0.8, z), Color3.fromRGB(190, 190, 190))
+	local roadColor = s.definition.unpaved and Color3.fromRGB(160, 125, 80) or Color3.fromRGB(45, 45, 50)
+	part(s.scene, "ApproachRoad", Vector3.new(14, 0.2, 80), o + Vector3.new(0, 0.6, 0), roadColor)
+	part(s.scene, "CrossingRoad", Vector3.new(80, 0.2, 14), o + Vector3.new(0, 0.75, -6.5), Color3.fromRGB(45, 45, 50))
+	local target = part(s.scene, "PracticeStopZone", Vector3.new(6, 0.1, 6), o + Vector3.new(3.5, 0.8, 6), Color3.fromRGB(190, 155, 35))
+	target.Transparency = 0.3
+	label(target, "OEFENVAK\nGeen verplicht stopteken")
+	if s.definition.actorKind == "tram" then
+		for _, z in ipairs({ -5, -8 }) do
+			part(s.scene, "Rail", Vector3.new(75, 0.2, 0.3), o + Vector3.new(0, 0.9, z), Color3.fromRGB(190, 190, 190))
+		end
 	end
-	s.tram = part(s.scene, "Tram", Vector3.new(14, 6, 5), o + Vector3.new(-30, 4, -6.5), Color3.fromRGB(245, 195, 40))
-	label(s.tram, "TRAM — technische demo")
-	s.block = part(s.scene, "PracticeBlock", Vector3.new(3, 2, 4), o + Vector3.new(0, 2, 24), Color3.fromRGB(40, 180, 210))
+	s.actor, s.actorHeight = createActor(s.scene, s.definition, o)
+	positionActor(s, s.definition.startX)
+	s.block = part(s.scene, "PracticeBlock", Vector3.new(3, 2, 4), o + Vector3.new(3.5, 2, 24), Color3.fromRGB(40, 180, 210))
 	moveCharacter(player, o + Vector3.new(18, 5, 20), true)
-	send(player, "Cinematic", { origin = o, token = s.token })
+	send(player, "Cinematic", { origin = o, token = s.token, titleNl = s.definition.titleNl, index = s.sceneIndex, total = #scenarios })
 end
 
 local function setupPlayer(player)
@@ -158,6 +246,7 @@ local function setupPlayer(player)
 	local function spawned(character)
 		clearDwell(player, s)
 		clearScene(s)
+		s.definition, s.sceneIndex, s.results = nil, nil, nil
 		s.phase = s.started and "lobby" or "menu"
 		local root = character:WaitForChild("HumanoidRootPart", 10)
 		local humanoid = character:WaitForChild("Humanoid", 10)
@@ -184,9 +273,6 @@ Players.PlayerRemoving:Connect(function(player)
 	sessions[player] = nil
 end)
 
--- The answer and feedback stay on the server. This is an instruction question,
--- deliberately not an unreviewed claim about tram priority law.
-local options = { "Versnel over de witte lijn.", "Stop in het gele vak vóór de witte lijn.", "Rijd achteruit van de weg af." }
 remote.OnServerEvent:Connect(function(player, command, value, token)
 	local s = sessions[player]
 	if not s or type(command) ~= "string" then return end
@@ -213,27 +299,32 @@ remote.OnServerEvent:Connect(function(player, command, value, token)
 		lobby(player, s)
 	elseif command == "Page" and s.phase == "book" and (value == 1 or value == -1) then
 		s.page = math.clamp(s.page + value, 1, #Content.pages)
-		send(player, "Book", { page = s.page, text = Content.pages[s.page], total = #Content.pages })
+		sendBook(player, s)
 	elseif command == "Finish" and s.phase == "book" and s.page == #Content.pages then
 		s.theoryRead = true
 		lobby(player, s)
 	elseif command == "Answer" and s.phase == "question" and token == s.token then
+		local options = s.definition.options
 		if type(value) ~= "number" or value % 1 ~= 0 or value < 1 or value > #options then
 			trace(player, "Reject:Answer", "invalid option index")
 			return
 		end
-		s.knowledge, s.phase = value == 2, "answered"
+		s.knowledge, s.phase = value == s.definition.correct, "answered"
 		send(player, "AnswerFeedback", { correct = s.knowledge,
-			text = value == 2 and "Goed: dit is de opdracht van de demo." or "De opdracht is: stop het hele blok in het gele vak vóór de witte lijn." })
+			text = s.definition.explanationNl })
 	elseif command == "BeginAction" and s.phase == "answered" and token == s.token then
 		s.phase, s.actionTime, s.stopped, s.speed, s.throttle = "action", 0, 0, 0, 0
 		s.lastDrive = now
-		send(player, "Action")
+		send(player, "Action", { titleNl = s.definition.titleNl })
 	elseif command == "Drive" and s.phase == "action" and token == s.token and (value == 0 or value == 1) then
 		if s.throttle ~= value then trace(player, "Drive", value == 1 and "accelerate" or "brake") end
 		s.throttle, s.lastDrive = value, now
 	elseif command == "Return" and (s.phase == "result" or s.phase == "action" or s.phase == "question" or s.phase == "answered" or s.phase == "cinematic") and token == s.token then
 		lobby(player, s)
+	elseif command == "NextScene" and s.phase == "result" and token == s.token and s.sceneIndex < #scenarios then
+		beginScene(player, s, s.sceneIndex + 1)
+	elseif command == "RetryScene" and s.phase == "result" and token == s.token then
+		beginScene(player, s, s.sceneIndex)
 	else
 		-- Limit diagnostics for stale/invalid requests, including drive keepalives.
 		if not s.lastReject or now - s.lastReject >= 1 then
@@ -277,20 +368,23 @@ RunService.Heartbeat:Connect(function(dt)
 						clearDwell(player, s)
 						s.phase, s.page = "book", 1
 						root.Anchored = true
-						send(player, "Book", { page = 1, text = Content.pages[1], total = #Content.pages })
+						sendBook(player, s)
 					else beginScene(player, s) end
 				end
 			else clearDwell(player, s) end
 		elseif s.phase == "cinematic" then
 			s.sceneTime += dt
-			s.tram.Position = s.origin + Vector3.new(-30 + math.min(s.sceneTime, 3) * 16, 4, -6.5)
-			if s.sceneTime >= 3 then
+			local direction = s.definition.startX > 0 and -1 or 1
+			positionActor(s, s.definition.startX + direction * math.min(s.sceneTime, 4) * 4.5)
+			if s.sceneTime >= 4 then
 				s.phase = "question"
-				send(player, "Question", { prompt = "[CONCEPT — BEDIENINGSTEST]\nDe tram rijdt door het decor. Opdracht: stop in het gele vak vóór de witte lijn. Welke actie hoort bij deze opdracht?", options = options })
+				send(player, "Question", { prompt = s.definition.prompt, options = s.definition.options, titleNl = s.definition.titleNl, index = s.sceneIndex, total = #scenarios })
 			end
 		elseif s.phase == "action" then
 			local step = math.min(dt, 0.1)
 			s.actionTime += dt
+			local direction = s.definition.startX > 0 and -1 or 1
+			positionActor(s, -direction * 12 + direction * math.min(s.actionTime, 6) * 8)
 			if os.clock() - s.lastDrive > 0.5 and s.throttle ~= 0 then
 				trace(player, "DriveTimeout", "automatic brake: no input for 0.5s")
 				s.throttle = 0
@@ -298,12 +392,12 @@ RunService.Heartbeat:Connect(function(dt)
 			s.speed = math.clamp(s.speed + (s.throttle == 1 and 8 or -20) * step, 0, 12)
 			s.block.Position -= Vector3.new(0, 0, s.speed * step)
 			local z = s.block.Position.Z - s.origin.Z
-			-- Front of the four-stud block must remain behind the stop line at z=2.
-			if z - 2 <= 2.25 then result(player, s, false, "Je blok is over de witte lijn gereden.")
+			-- Training target, not a legal stop-line or a full yielding predicate.
+			if z - 2 <= 2.25 then result(player, s, false, "Je reed voorbij het oefenvak. Rem eerder.")
 			elseif z >= 5 and z <= 7 and s.speed < 0.1 then
 				if s.stopped == 0 then trace(player, "StopCheck", "stationary inside target zone; holding for 1s") end
 				s.stopped += step
-				if s.stopped >= 1 then result(player, s, true, "Je stond één seconde stil in het gele vak, vóór de lijn.") end
+				if s.stopped >= 1 then result(player, s, true, "Je stond één seconde stil in het oefenvak. Alleen de stopactie is beoordeeld, niet het volledige voorrang verlenen.") end
 			else
 				if s.stopped > 0 then trace(player, "StopCheck", "hold reset: moved or left target zone") end
 				s.stopped = 0

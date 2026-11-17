@@ -4,6 +4,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
 local player = Players.LocalPlayer
+local Content = require(ReplicatedStorage:WaitForChild("TopicContent"))
 local remote = ReplicatedStorage:WaitForChild("PrototypeEvent")
 local gui = Instance.new("ScreenGui")
 gui.Name, gui.ResetOnSpawn, gui.IgnoreGuiInset = "AMPrototypeGui", false, false
@@ -87,7 +88,7 @@ local function overlay(kind, fromMenu)
 	if not fromMenu then send("Overlay", true) end
 	mode = "overlay"
 	if kind == "progress" then
-		heading("Voortgang", "Alleen deze serversessie.\n\nVoorrang: " .. (theoryRead and "THEORIE GELEZEN — training beschikbaar" or "THEORIE NOG NIET GELEZEN") .. "\n\nDeze demo geeft nog geen geslaagd onderwerp of examencijfer.")
+		heading("Voortgang", "Alleen deze serversessie.\n\nVoorrang: " .. (theoryRead and "THEORIE GELEZEN — 3 oefenscènes beschikbaar" or "THEORIE NOG NIET GELEZEN") .. "\n\nDeze demo geeft nog geen geslaagd onderwerp of examencijfer.")
 	else
 		heading("Instellingen", "Leesbaarheid van de boektekst.\n\nInstellingen worden niet opgeslagen.")
 		local toggle
@@ -104,7 +105,7 @@ showMenu = function()
 	mode = "menu"
 	restoreCamera()
 	status.Text = "AM Theory Simulator | technisch prototype"
-	heading("AM Theory Simulator", "Milestone 1 — Voorrang\n\nLoop vrij rond, lees het conceptboek en probeer één tramscène.\n\nGeen officiële CBR-les. Alle leerinhoud is concept.")
+	heading("AM Theory Simulator", "Voorrang — eerste leerinhoud\n\nLees het geïllustreerde boek en probeer 3 oefenscènes: fietser van rechts, onverharde weg en tram.\n\nConcept: actualiteitscontrole open. Geen officiële CBR-les.")
 	button(panel, "Spelen", 0.3, 0.68, 0.4, function() send("Play") end)
 	button(panel, "Instellingen", 0.08, 0.84, 0.38, function() overlay("settings", true) end)
 	button(panel, "Voortgang", 0.54, 0.84, 0.38, function() overlay("progress", true) end)
@@ -125,34 +126,54 @@ remote.OnClientEvent:Connect(function(kind, data)
 	elseif kind == "Notice" then status.Text = data
 	elseif kind == "Book" then
 		mode = "book"
-		heading("Voorrang — CONCEPT | " .. data.page .. "/" .. data.total, data.text)
-		local back = button(panel, "Vorige", 0.05, 0.71, 0.26, function() send("Page", -1) end)
+		local body = heading(data.titleNl .. " | " .. data.page .. "/" .. data.total, data.text)
+		status.Text = "CONCEPT — actualiteitscontrole open | Bron: RVV 1990"
+		body.Position, body.Size = UDim2.fromScale(0.04, 0.21), UDim2.fromScale(0.45, 0.43)
+		body.TextXAlignment, body.TextYAlignment = Enum.TextXAlignment.Left, Enum.TextYAlignment.Top
+		local imageId = tostring(Content.images[data.imageKey] or "")
+		if imageId:match("^%d+$") then imageId = "rbxassetid://" .. imageId end
+		if imageId:match("^rbxassetid://%d+$") then
+			local picture = Instance.new("ImageLabel")
+			picture.Name, picture.BackgroundTransparency = "TheoryIllustration", 1
+			picture.Position, picture.Size = UDim2.fromScale(0.53, 0.20), UDim2.fromScale(0.43, 0.45)
+			picture.ScaleType, picture.Image, picture.Parent = Enum.ScaleType.Fit, imageId, panel
+			task.delay(8, function()
+				if picture.Parent and not picture.IsLoaded then
+					warn("[AM Theory][Client] Image not loaded: " .. imageId .. ". Check asset permissions, ID and moderation.")
+				end
+			end)
+		else
+			text(panel, "Illustratie nog niet gekoppeld\n\nUpload " .. data.imageKey .. ".png en vul het afbeeldings-ID in TopicContent.images in.", UDim2.fromScale(0.53, 0.21), UDim2.fromScale(0.43, 0.43))
+		end
+		local caption = text(panel, data.captionNl, UDim2.fromScale(0.04, 0.65), UDim2.fromScale(0.92, 0.075))
+		caption:FindFirstChildOfClass("UITextSizeConstraint").MaxTextSize = 13
+		local back = button(panel, "Vorige", 0.05, 0.75, 0.26, function() send("Page", -1) end)
 		back.Visible = data.page > 1
 		if data.page < data.total then
-			button(panel, "Volgende", 0.69, 0.71, 0.26, function() send("Page", 1) end)
+			button(panel, "Volgende", 0.69, 0.75, 0.26, function() send("Page", 1) end)
 		else
-			button(panel, "Theorie afronden", 0.4, 0.71, 0.55, function() send("Finish") end)
+			button(panel, "Theorie afronden", 0.4, 0.75, 0.55, function() send("Finish") end)
 		end
-		button(panel, "Sluiten", 0.3, 0.85, 0.4, function() send("BookClose") end)
+		button(panel, "Sluiten", 0.3, 0.88, 0.4, function() send("BookClose") end)
 	elseif kind == "Cinematic" then
 		mode, token, origin, shotStarted = "cinematic", data.token, data.origin, os.clock()
 		panel.Visible, toolbar.Visible = false, false
 		workspace.CurrentCamera.CameraType = Enum.CameraType.Scriptable
-		status.Text = "Tramscène — technische demo (3 seconden)"
+		status.Text = string.format("Scène %d/%d: %s (4 seconden) | CONCEPT", data.index, data.total, data.titleNl)
 	elseif kind == "Question" then
 		mode = "question"
-		heading("Tram — conceptvraag", data.prompt)
+		heading(string.format("%d/%d — %s | CONCEPT", data.index, data.total, data.titleNl), data.prompt)
 		for index, option in ipairs(data.options) do
 			button(panel, option, 0.06, 0.64 + (index - 1) * 0.115, 0.88, function() send("Answer", index) end)
 		end
 	elseif kind == "AnswerFeedback" then
 		mode = "answered"
-		heading(data.correct and "Kennis: goed" or "Kennis: nog oefenen", data.text .. "\n\nNu volgt een aparte actiebeoordeling. Houd Vooruit ingedrukt, laat los om te remmen. Stop één seconde in het gele vak.")
+		heading(data.correct and "Kennis: goed | CONCEPT" or "Kennis: nog oefenen | CONCEPT", data.text .. "\n\nOefen nu afzonderlijk het stoppen: houd Vooruit ingedrukt en laat los om te remmen. Stop één seconde in het gele oefenvak. Dit vak is geen verplicht stopteken.")
 		button(panel, "Start de actie", 0.15, 0.71, 0.7, function() send("BeginAction") end)
 		button(panel, "Terug naar lobby", 0.2, 0.85, 0.6, function() send("Return") end)
 	elseif kind == "Action" then
 		mode, throttle = "action", 0
-		local instructions = heading("Stop vóór de witte lijn", "W / ↑ / Vooruit: rijden. Loslaten / Spatie / Rem: remmen.\nStop 1 seconde in het gele vak. Eenheden: studs, geen km/h.")
+		local instructions = heading("Oefen het stoppen", "W / ↑ / Vooruit: rijden. Loslaten / Spatie / Rem: remmen.\nStop 1 seconde in het gele oefenvak. Dit is geen verplicht stopteken.")
 		-- Keep the road visible above a compact control panel.
 		panel.Size, panel.Position = UDim2.fromScale(0.92, 0.36), UDim2.fromScale(0.5, 0.78)
 		instructions:FindFirstChildOfClass("UITextSizeConstraint").MaxTextSize = 15
@@ -167,8 +188,14 @@ remote.OnClientEvent:Connect(function(kind, data)
 	elseif kind == "Result" then
 		mode, throttle = "result", 0
 		panel.Size, panel.Position = UDim2.fromScale(0.92, 0.82), UDim2.fromScale(0.5, 0.5)
-		heading("Resultaat — technische demo", "Kennis: " .. (data.knowledge and "goed" or "nog oefenen") .. "\nActie: " .. (data.action and "goed" or "nog oefenen") .. "\n\n" .. data.reason .. "\n\nGeen onderwerppas of examenscore. Probeer gerust opnieuw.")
-		button(panel, "Terug naar lobby", 0.2, 0.8, 0.6, function() send("Return") end)
+		heading(string.format("Resultaat %d/%d — %s", data.index, data.total, data.titleNl),
+			"Kennis: " .. (data.knowledge and "goed" or "nog oefenen") .. "\nStopactie: " .. (data.action and "goed" or "nog oefenen") .. "\n\n" .. data.reason ..
+			string.format("\n\nDeze oefenronde: kennis %d/%d, stopacties %d/%d. Herkansen vervangt het resultaat van deze scène. Geen examenscore.", data.knowledgeCount, data.index, data.actionCount, data.index))
+		button(panel, "Opnieuw", 0.05, 0.72, 0.40, function() send("RetryScene") end)
+		if data.index < data.total then
+			button(panel, "Volgende scène", 0.55, 0.72, 0.40, function() send("NextScene") end)
+		end
+		button(panel, "Terug naar lobby", 0.2, 0.86, 0.6, function() send("Return") end)
 	elseif kind == "Reset" then
 		mode = "dead"
 		restoreCamera()

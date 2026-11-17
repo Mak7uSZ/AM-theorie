@@ -5,3 +5,4 @@
 *.json text eol=lf
 *.rbxl binary
 *.rbxm binary
+*.png binary
