@@ -10,3 +10,4 @@ Read [CODEX_MASTER_BRIEF.md](CODEX_MASTER_BRIEF.md) first. That document is the 
 - All actual road-rule text is written by the owner, checked with official Dutch legal/CBR references before marking reviewed. Do not invent or copy official CBR question text.
 - Do not claim a script has run in Roblox Studio without real testing.
 - Prior three-script ZIP concept from earlier chat is superseded by current requirements.
+- Owner update (2026-11-17): training now uses a side overview, a manually controlled first-person approach, a question triggered near the junction, then an automatic first-person consequence for each answer (yield and continue / drive through / rush with staged collision). Grade the decision only; never award manual driving credit for an autopilot demonstration. See docs/LESSON_03_RU.md. This overrides the earlier manual stop-zone exercise for the current prototype.

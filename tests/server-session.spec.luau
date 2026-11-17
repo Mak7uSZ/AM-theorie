@@ -134,20 +134,45 @@ local function train(player)
 end
 local function question(player)
 	frames(4.2)
-	expect(sessions[player].phase == "question", "Cinematic must end in question")
+	local s = sessions[player]
+	expect(s.phase == "approach", "Overview must hand control to first-person approach")
+	local startZ = s.block.Position.Z
+	request(player, "Answer", 1)
+	expect(s.phase == "approach", "Cannot answer before reaching decision point")
+	for _ = 1, 40 do
+		if s.phase ~= "approach" then break end
+		request(player, "Drive", 1)
+		frames(0.2)
+	end
+	expect(s.block.Position.Z < startZ, "Manual drive must actually move vehicle toward intersection")
+	expect(s.phase == "question" and s.speed == 0, "Server must pause for question at approach threshold")
+	expect(math.abs(s.block.Position.Z - s.origin.Z - QUESTION_Z) < 0.001, "Decision trigger must be position-based")
+	local pausedZ = s.block.Position.Z
+	request(player, "Drive", 1); frames(0.3)
+	expect(s.block.Position.Z == pausedZ, "Drive requests must not bypass decision pause")
 	local payload = latest(player, "Question")
 	expect(payload.correct == nil and payload.correctAnswerIndex == nil and payload.explanationNl == nil, "Question must not reveal answer key")
 end
-local function stopSuccessfully(player)
-	request(player, "BeginAction")
+local function finishOutcome(player, safe)
 	local s = sessions[player]
-	expect(s.phase == "action", "Answer must enable action")
-	frames(0.2)
-	expect(s.phase == "action" and s.stopped == 0, "Stopping at starting position must not pass")
-	-- Supply a measured block position; engine physics/rendering are outside this harness.
-	s.block.Position = s.origin + vector(3.5, 2, 6)
-	frames(1.2)
-	expect(s.phase == "result" and latest(player, "Result").action, "Holding inside target must pass stop check")
+	expect(s.phase == "outcome", "Answer must start automatic consequence immediately")
+	local chosenBranch = s.branch
+	request(player, "Answer", 99)
+	expect(s.branch == chosenBranch, "Duplicate answer must not change chosen continuation")
+	request(player, "Drive", 0)
+	if safe then
+		local stoppedZ = s.block.Position.Z
+		frames(3.7)
+		expect(s.block.Position.Z == stoppedZ, "Safe branch must wait for crossing road user")
+		frames(1)
+		expect(s.block.Position.Z < stoppedZ, "Safe branch must continue after waiting")
+		frames(5.5)
+	else frames(4.5) end
+	expect(s.phase == "result", "Automatic consequence must reach result")
+	local payload = latest(player, "Result")
+	expect(payload.outcome == (safe and "safe" or "collision"), "Consequence must match server-graded choice")
+	expect(payload.action == nil and payload.actionCount == nil, "Autopilot must not award manual driving credit")
+	if not safe then expect(s.impacted, "Wrong choice must play staged impact before result") end
 end
 
 expect(#contentForTest.pages == 6, "Book must have six authored pages")
@@ -181,10 +206,10 @@ expect(s.phase == "question" and s.sceneIndex == 1, "Cannot skip unfinished ques
 request(p, "Answer", 99)
 expect(s.phase == "question", "Out-of-range answer must be rejected")
 request(p, "Answer", 2)
-expect(s.knowledge and s.phase == "answered", "Cyclist from right must be graded correctly")
+expect(s.knowledge and s.phase == "outcome", "Cyclist from right must be graded correctly")
 request(p, "Answer", 1)
 expect(s.knowledge, "Duplicate answer must not change grade")
-stopSuccessfully(p)
+finishOutcome(p, true)
 local oldToken = s.token
 request(p, "NextScene")
 expect(s.sceneIndex == 2 and s.definition.unpaved and s.token ~= oldToken, "Next scene must load unpaved case with new token")
@@ -192,24 +217,53 @@ question(p)
 request(p, "Answer", 1, oldToken)
 expect(s.phase == "question", "Stale scene token must be rejected")
 request(p, "Answer", 1)
-request(p, "BeginAction")
-s.block.Position = s.origin + vector(3.5, 2, 4)
-frames(0.1)
-expect(s.phase == "result" and not latest(p, "Result").action, "Overshooting target must fail independently")
+finishOutcome(p, true)
 request(p, "RetryScene")
 expect(s.sceneIndex == 2 and s.phase == "cinematic", "Retry must keep current scene")
 question(p)
 request(p, "Answer", 3)
 expect(not s.knowledge, "Incorrect answer must remain incorrect")
-stopSuccessfully(p)
-expect(latest(p, "Result").knowledgeCount == 1 and latest(p, "Result").actionCount == 2, "Retry must replace grade, without double-counting")
-request(p, "NextScene"); question(p); request(p, "Answer", 3); stopSuccessfully(p)
+finishOutcome(p, false)
+expect(latest(p, "Result").knowledgeCount == 1, "Retry must replace grade, without double-counting")
+request(p, "NextScene"); question(p); request(p, "Answer", 3); finishOutcome(p, true)
 expect(s.sceneIndex == 3 and latest(p, "Result").knowledgeCount == 2, "Tram scene must use its own answer key")
 request(p, "NextScene")
 expect(s.phase == "result" and s.sceneIndex == 3, "Last scene must not advance out of range")
 local oldScene = s.scene
 request(p, "Return")
 expect(s.phase == "lobby" and oldScene.Destroyed and not p.Character:FindFirstChild("HumanoidRootPart").Anchored, "Return must clean scene and restore character")
+
+-- Exercise every answer option in all scenes against the actual consequence code.
+for sceneIndex, definition in ipairs(scenarios) do
+	local branchTimes = {}
+	for option = 1, #definition.options do
+		s.results = {}
+		beginScene(p, s, sceneIndex)
+		question(p)
+		request(p, "Answer", option)
+		expect(s.branch == definition.branches[option], "Each answer must select its own configured branch")
+		finishOutcome(p, option == definition.correct)
+		branchTimes[s.branch] = s.outcomeTime
+	end
+	expect(branchTimes.rush < branchTimes.drive, "Accelerating and driving through must produce different timelines")
+end
+request(p, "Return")
+
+train(p); frames(4.2)
+expect(s.phase == "approach", "Approach setup failed")
+local idleZ = s.block.Position.Z
+frames(1)
+expect(s.block.Position.Z == idleZ, "Vehicle must not auto-drive before user's input")
+request(p, "Drive", 1); frames(0.2); request(p, "Drive", 0); frames(0.8)
+expect(s.speed == 0, "Brake must stop approach vehicle")
+request(p, "Drive", 1); frames(1.5)
+expect(s.speed == 0, "Missing drive keepalives must trigger automatic brake")
+frames(45)
+expect(s.phase == "lobby" and s.scene == nil, "Idle approach timeout must restore lobby")
+train(p); frames(4.2)
+request(p, "Drive", 1)
+remote.OnServerEvent:Fire(p, "Return", nil, s.token)
+expect(s.phase == "lobby", "Drive keepalive must not rate-limit a simultaneous exit request")
 
 local p2 = newPlayer(2)
 request(p2, "Play"); readBook(p2)

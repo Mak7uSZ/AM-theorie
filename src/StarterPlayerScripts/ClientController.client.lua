@@ -12,6 +12,9 @@ gui.Parent = player:WaitForChild("PlayerGui")
 local mode, token, origin = "loading", 0, nil
 local theoryRead, throttle, largeText = false, 0, false
 local shotStarted = 0
+local vehicle, sceneName, viewPosition, savedView
+local firstPerson, looking, lookLeft, lookRight = false, false, false, false
+local yaw, pitch = 0, math.rad(-6)
 local DEBUG_LOGS = true
 local function fitText(object, maximum)
 	object.TextScaled = true
@@ -57,7 +60,17 @@ status.BackgroundTransparency, status.BackgroundColor3 = 0.1, Color3.fromRGB(20,
 local toolbar = Instance.new("Frame")
 toolbar.Size, toolbar.Position, toolbar.BackgroundTransparency = UDim2.fromScale(0.65, 0.12), UDim2.fromScale(0.18, 0.86), 1
 toolbar.Parent = gui
+local ridingHud = Instance.new("Frame")
+ridingHud.AnchorPoint, ridingHud.Position = Vector2.new(0.5, 1), UDim2.fromScale(0.5, 0.97)
+ridingHud.Size, ridingHud.BackgroundTransparency, ridingHud.Visible = UDim2.fromScale(0.78, 0.14), 1, false
+ridingHud.Parent = gui
+local impactFlash = Instance.new("Frame")
+impactFlash.Size, impactFlash.BackgroundColor3 = UDim2.fromScale(1, 1), Color3.fromRGB(160, 40, 30)
+impactFlash.BackgroundTransparency, impactFlash.Visible, impactFlash.ZIndex = 0.65, false, 10
+impactFlash.Parent = gui
 local function heading(title, body)
+	panel.Size, panel.Position = UDim2.fromScale(0.92, 0.82), UDim2.fromScale(0.5, 0.5)
+	ridingHud.Visible = false
 	panel:ClearAllChildren()
 	local limit = Instance.new("UISizeConstraint")
 	limit.MaxSize, limit.Parent = Vector2.new(820, 560), panel
@@ -70,9 +83,18 @@ local function heading(title, body)
 end
 local function restoreCamera()
 	origin = nil
+	vehicle, sceneName, viewPosition = nil, nil, nil
+	firstPerson, looking, lookLeft, lookRight = false, false, false, false
+	ridingHud.Visible, impactFlash.Visible = false, false
 	throttle = 0
 	local camera = workspace.CurrentCamera
 	camera.CameraType = Enum.CameraType.Custom
+	if savedView then
+		camera.FieldOfView = savedView.fov
+		UserInputService.MouseBehavior = savedView.mouseBehavior
+		UserInputService.MouseIconEnabled = savedView.mouseIcon
+		savedView = nil
+	end
 	local character = player.Character
 	local humanoid = character and character:FindFirstChildOfClass("Humanoid")
 	if humanoid then camera.CameraSubject = humanoid end
@@ -114,6 +136,17 @@ toolbar.Size = UDim2.fromScale(0.65, 0.08)
 local settingsButton = button(toolbar, "Instellingen", 0, 0, 0.48, function() overlay("settings", false) end)
 local progressButton = button(toolbar, "Voortgang", 0.52, 0, 0.48, function() overlay("progress", false) end)
 settingsButton.Size, progressButton.Size = UDim2.fromScale(0.48, 1), UDim2.fromScale(0.48, 1)
+local forwardButton = button(ridingHud, "Vooruit (W / ↑)", 0, 0, 0.32)
+forwardButton.Size = UDim2.fromScale(0.32, 0.48)
+forwardButton.InputBegan:Connect(function(input)
+	if mode == "approach" and (input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch) then throttle = 1 end
+end)
+local brakeButton = button(ridingHud, "Rem (Spatie)", 0.34, 0, 0.32, function() throttle = 0 end)
+brakeButton.Size = UDim2.fromScale(0.32, 0.48)
+local exitButton = button(ridingHud, "Naar lobby", 0.68, 0, 0.32, function() send("Return") end)
+exitButton.Size = UDim2.fromScale(0.32, 0.48)
+local lookHint = text(ridingHud, "Q / E: links / rechts kijken • Rechtermuisknop slepen: rondkijken • Snelheid: studs/s", UDim2.fromScale(0, 0.52), UDim2.fromScale(1, 0.45))
+lookHint:FindFirstChildOfClass("UITextSizeConstraint").MaxTextSize = 13
 
 remote.OnClientEvent:Connect(function(kind, data)
 	if DEBUG_LOGS and kind ~= "Countdown" and kind ~= "Notice" then
@@ -160,41 +193,49 @@ remote.OnClientEvent:Connect(function(kind, data)
 		end
 		button(panel, "Sluiten", 0.3, 0.88, 0.4, function() send("BookClose") end)
 	elseif kind == "Cinematic" then
+		local camera = workspace.CurrentCamera
+		if not savedView then
+			savedView = { fov = camera.FieldOfView, mouseBehavior = UserInputService.MouseBehavior, mouseIcon = UserInputService.MouseIconEnabled }
+		end
 		mode, token, origin, shotStarted = "cinematic", data.token, data.origin, os.clock()
-		panel.Visible, toolbar.Visible = false, false
-		workspace.CurrentCamera.CameraType = Enum.CameraType.Scriptable
+		vehicle, sceneName, viewPosition = data.vehicle, data.sceneName, nil
+		firstPerson, looking, lookLeft, lookRight, throttle = false, false, false, false, 0
+		yaw, pitch = 0, math.rad(-6)
+		UserInputService.MouseBehavior = Enum.MouseBehavior.Default
+		panel.Visible, toolbar.Visible, ridingHud.Visible, impactFlash.Visible = false, false, false, false
+		camera.CameraType = Enum.CameraType.Scriptable
 		status.Text = string.format("Scène %d/%d: %s (4 seconden) | CONCEPT", data.index, data.total, data.titleNl)
+	elseif kind == "Approach" then
+		mode, firstPerson, throttle = "approach", true, 0
+		vehicle, sceneName = data.vehicle, data.sceneName
+		workspace.CurrentCamera.FieldOfView = 80
+		panel.Visible, toolbar.Visible, ridingHud.Visible = false, false, true
+		status.Text = "Jouw beurt: rijd naar het kruispunt. Daar neem je een beslissing."
 	elseif kind == "Question" then
-		mode = "question"
+		mode, throttle = "question", 0
 		heading(string.format("%d/%d — %s | CONCEPT", data.index, data.total, data.titleNl), data.prompt)
+		-- Keep the first-person road view visible next to the decision card.
+		panel.Size, panel.Position = UDim2.fromScale(0.40, 0.68), UDim2.fromScale(0.78, 0.55)
+		status.Text = "Beslispunt: kies wat je doet. Q / E of rechtermuisknop: rondkijken."
 		for index, option in ipairs(data.options) do
 			button(panel, option, 0.06, 0.64 + (index - 1) * 0.115, 0.88, function() send("Answer", index) end)
 		end
-	elseif kind == "AnswerFeedback" then
-		mode = "answered"
-		heading(data.correct and "Kennis: goed | CONCEPT" or "Kennis: nog oefenen | CONCEPT", data.text .. "\n\nOefen nu afzonderlijk het stoppen: houd Vooruit ingedrukt en laat los om te remmen. Stop één seconde in het gele oefenvak. Dit vak is geen verplicht stopteken.")
-		button(panel, "Start de actie", 0.15, 0.71, 0.7, function() send("BeginAction") end)
-		button(panel, "Terug naar lobby", 0.2, 0.85, 0.6, function() send("Return") end)
-	elseif kind == "Action" then
-		mode, throttle = "action", 0
-		local instructions = heading("Oefen het stoppen", "W / ↑ / Vooruit: rijden. Loslaten / Spatie / Rem: remmen.\nStop 1 seconde in het gele oefenvak. Dit is geen verplicht stopteken.")
-		-- Keep the road visible above a compact control panel.
-		panel.Size, panel.Position = UDim2.fromScale(0.92, 0.36), UDim2.fromScale(0.5, 0.78)
-		instructions:FindFirstChildOfClass("UITextSizeConstraint").MaxTextSize = 15
-		local forward = button(panel, "Vooruit (vasthouden)", 0.04, 0.73, 0.44)
-		forward.Size = UDim2.fromScale(0.44, 0.22)
-		forward.InputBegan:Connect(function(input)
-			if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then throttle = 1 end
-		end)
-		local brake = button(panel, "Rem", 0.52, 0.73, 0.44, function() throttle = 0 end)
-		brake.Size = UDim2.fromScale(0.44, 0.22)
-		status.Text = "Stop in het gele vak — maximaal 25 seconden"
+	elseif kind == "Outcome" then
+		mode, throttle = "outcome", 0
+		panel.Visible, ridingHud.Visible = false, false
+		local actions = { yield = "Je wacht en laat de ander voorgaan.", drive = "Je rijdt door zonder voorrang te verlenen.", rush = "Je versnelt om er nog vóór te komen." }
+		status.Text = "Automatisch vervolg: " .. actions[data.branch]
+	elseif kind == "Impact" then
+		impactFlash.Visible = true
+		status.Text = "Botsing — dit is het geënsceneerde gevolg van je keuze."
+		local impactToken = token
+		task.delay(0.18, function() if token == impactToken then impactFlash.Visible = false end end)
 	elseif kind == "Result" then
 		mode, throttle = "result", 0
 		panel.Size, panel.Position = UDim2.fromScale(0.92, 0.82), UDim2.fromScale(0.5, 0.5)
 		heading(string.format("Resultaat %d/%d — %s", data.index, data.total, data.titleNl),
-			"Kennis: " .. (data.knowledge and "goed" or "nog oefenen") .. "\nStopactie: " .. (data.action and "goed" or "nog oefenen") .. "\n\n" .. data.reason ..
-			string.format("\n\nDeze oefenronde: kennis %d/%d, stopacties %d/%d. Herkansen vervangt het resultaat van deze scène. Geen examenscore.", data.knowledgeCount, data.index, data.actionCount, data.index))
+			"Beslissing: " .. (data.knowledge and "goed" or "nog oefenen") .. "\nGevolg: " .. (data.outcome == "safe" and "veilig verder" or "botsing") .. "\n\n" .. data.explanationNl .. "\n\n" .. data.reason ..
+			string.format("\n\nGoede beslissingen: %d/%d. Geen aparte rijvaardigheidsscore: het vervolg was automatisch.", data.knowledgeCount, data.index))
 		button(panel, "Opnieuw", 0.05, 0.72, 0.40, function() send("RetryScene") end)
 		if data.index < data.total then
 			button(panel, "Volgende scène", 0.55, 0.72, 0.40, function() send("NextScene") end)
@@ -206,28 +247,64 @@ remote.OnClientEvent:Connect(function(kind, data)
 		panel.Visible, toolbar.Visible = false, false
 		status.Text = "Opnieuw verschijnen…"
 	end
-	if kind ~= "Action" then
-		panel.Size, panel.Position = UDim2.fromScale(0.92, 0.82), UDim2.fromScale(0.5, 0.5)
-	end
 end)
 UserInputService.InputBegan:Connect(function(input, processed)
-	if processed or mode ~= "action" then return end
-	if input.KeyCode == Enum.KeyCode.W or input.KeyCode == Enum.KeyCode.Up then throttle = 1 end
-	if input.KeyCode == Enum.KeyCode.Space or input.KeyCode == Enum.KeyCode.S then throttle = 0 end
+	if processed or not firstPerson then return end
+	if input.UserInputType == Enum.UserInputType.MouseButton2 then
+		looking = true
+		UserInputService.MouseBehavior = Enum.MouseBehavior.LockCurrentPosition
+	end
+	if input.KeyCode == Enum.KeyCode.Q then lookLeft = true end
+	if input.KeyCode == Enum.KeyCode.E then lookRight = true end
+	if mode == "approach" then
+		if input.KeyCode == Enum.KeyCode.W or input.KeyCode == Enum.KeyCode.Up then throttle = 1 end
+		if input.KeyCode == Enum.KeyCode.Space or input.KeyCode == Enum.KeyCode.S then throttle = 0 end
+	end
+end)
+UserInputService.InputChanged:Connect(function(input)
+	if firstPerson and looking and input.UserInputType == Enum.UserInputType.MouseMovement then
+		yaw = math.clamp(yaw + input.Delta.X * 0.004, math.rad(-100), math.rad(100))
+		pitch = math.clamp(pitch - input.Delta.Y * 0.003, math.rad(-35), math.rad(25))
+	end
 end)
 UserInputService.InputEnded:Connect(function(input)
+	if input.KeyCode == Enum.KeyCode.Q then lookLeft = false end
+	if input.KeyCode == Enum.KeyCode.E then lookRight = false end
+	if input.UserInputType == Enum.UserInputType.MouseButton2 and looking then
+		looking = false
+		UserInputService.MouseBehavior = Enum.MouseBehavior.Default
+	end
 	if input.KeyCode == Enum.KeyCode.W or input.KeyCode == Enum.KeyCode.Up
 		or input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then throttle = 0 end
 end)
-UserInputService.WindowFocusReleased:Connect(function() throttle = 0 end)
+UserInputService.WindowFocusReleased:Connect(function()
+	throttle, looking, lookLeft, lookRight = 0, false, false, false
+	if firstPerson then UserInputService.MouseBehavior = Enum.MouseBehavior.Default end
+end)
 local elapsed = 0
 RunService.RenderStepped:Connect(function(dt)
 	if origin then
 		local camera = workspace.CurrentCamera
-		local pan = mode == "cinematic" and math.min(os.clock() - shotStarted, 3) * 2 or 6
-		camera.CFrame = CFrame.lookAt(origin + Vector3.new(32 - pan, 30, 36), origin + Vector3.new(0, 0, 7))
+		if firstPerson then
+			if not vehicle or not vehicle.Parent then
+				local world = workspace:FindFirstChild("AMPrototype")
+				local scene = world and sceneName and world:FindFirstChild(sceneName)
+				vehicle = scene and scene:FindFirstChild("PracticeBlock")
+			end
+			if vehicle then
+				local eye = vehicle.Position + Vector3.new(0, 2.4, 0.7)
+				viewPosition = viewPosition and viewPosition:Lerp(eye, 1 - math.exp(-dt * 18)) or eye
+				local angle = lookLeft and math.rad(-65) or (lookRight and math.rad(65) or yaw)
+				local direction = Vector3.new(math.sin(angle) * math.cos(pitch), math.sin(pitch), -math.cos(angle) * math.cos(pitch))
+				camera.CFrame = CFrame.lookAt(viewPosition, viewPosition + direction)
+				camera.Focus = CFrame.new(viewPosition + direction * 25)
+			end
+		else
+			local pan = math.min(os.clock() - shotStarted, 4) * 2
+			camera.CFrame = CFrame.lookAt(origin + Vector3.new(32 - pan, 18, 32), origin + Vector3.new(0, 1, 0))
+		end
 	end
-	if mode == "action" then
+	if mode == "approach" then
 		elapsed += dt
 		if elapsed >= 0.16 then elapsed = 0; send("Drive", throttle) end
 	end

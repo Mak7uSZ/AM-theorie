@@ -12,25 +12,30 @@ world.Name = "AMPrototype"
 world.Parent = workspace
 local sessions = {}
 local DWELL = 5
+local QUESTION_Z = 18
+local START_Z = 36
 local DEBUG_LOGS = true
 -- Server-only original questions. Public metadata contains IDs, never keys.
 local scenarios = {
 	{
 		id = "cyclist_right_01", titleNl = "Fietser van rechts", actorKind = "bicycle", startX = 30, laneZ = -9.5,
 		prompt = "Je nadert op je bromfiets een gelijkwaardig kruispunt van twee verharde wegen. Een fietser komt van rechts en rijdt rechtdoor. Er zijn geen voorrangstekens of werkende verkeerslichten. Aan wie verleen je voorrang?",
-		options = { "Aan niemand: een bromfiets gaat vóór een fiets.", "Aan de fietser die van rechts komt.", "Alleen aan auto's van rechts." },
+		options = { "Ik rijd door: een bromfiets gaat vóór een fiets.", "Ik verleen de fietser van rechts voorrang.", "Ik versnel om nog vóór de fietser langs te rijden." },
+		branches = { "drive", "yield", "rush" },
 		correct = 2, explanationNl = "De fietser is een bestuurder die voor jou van rechts komt. Je verleent de fietser voorrang.",
 	},
 	{
 		id = "unpaved_01", titleNl = "Van onverhard naar verhard", actorKind = "car", startX = -30, laneZ = -3.5, unpaved = true,
 		prompt = "Je rijdt op een onverharde weg naar een kruispunt. Van links komt een auto op de verharde weg. Er zijn geen voorrangstekens of werkende verkeerslichten. Wat doe je?",
 		options = { "Ik verleen de auto op de verharde weg voorrang.", "Ik rijd eerst, omdat de auto van links komt.", "Ik rijd eerst, omdat ik op een bromfiets rijd." },
+		branches = { "yield", "drive", "rush" },
 		correct = 1, explanationNl = "Bestuurders op een onverharde weg verlenen voorrang aan bestuurders op een verharde weg, ook als die van links komen.",
 	},
 	{
 		id = "tram_demo_01", titleNl = "Tram van links", actorKind = "tram", startX = -30, laneZ = -6.5,
 		prompt = "Je nadert een kruispunt zonder voorrangsregeling, werkende verkeerslichten of verkeersregelaar. Een tram komt van links. Wat doe je?",
-		options = { "Ik rijd eerst, omdat de tram van links komt.", "Ik rijd eerst, omdat de tram groter is.", "Ik verleen de tram voorrang." },
+		options = { "Ik rijd door, omdat de tram van links komt.", "Ik versnel om nog vóór de tram langs te rijden.", "Ik verleen de tram voorrang." },
+		branches = { "drive", "rush", "yield" },
 		correct = 3, explanationNl = "Bij deze ongeregelde kruising verleen je de tram voorrang, ook als de tram van links komt. Dit betekent niet dat een tram in iedere situatie voorrang heeft.",
 	},
 }
@@ -101,9 +106,9 @@ local function send(player, kind, data)
 		local details = ""
 		if kind == "Book" then details = string.format("page=%d/%d", data.page, data.total)
 		elseif kind == "Question" then details = "options=" .. #data.options
-		elseif kind == "AnswerFeedback" then details = "correct=" .. tostring(data.correct)
+		elseif kind == "Outcome" then details = "branch=" .. data.branch
 		elseif kind == "Result" then
-			details = string.format("knowledge=%s action=%s reason=%s", tostring(data.knowledge), tostring(data.action), data.reason)
+			details = string.format("knowledge=%s outcome=%s reason=%s", tostring(data.knowledge), data.outcome, data.reason)
 		elseif kind == "Lobby" then details = "theoryRead=" .. tostring(data.theoryRead)
 		elseif kind == "Notice" then details = data end
 		trace(player, "Send:" .. kind, details)
@@ -127,7 +132,7 @@ local function clearDwell(player, s)
 end
 local function clearScene(s)
 	if s.scene then s.scene:Destroy() end
-	s.scene, s.block, s.actor, s.origin = nil, nil, nil, nil
+	s.scene, s.block, s.handlebar, s.actor, s.origin = nil, nil, nil, nil, nil
 	s.slot, s.throttle, s.speed = nil, 0, 0
 end
 local function moveCharacter(player, position, frozen)
@@ -147,18 +152,17 @@ local function lobby(player, s)
 	moveCharacter(player, Vector3.new(0, 5, 19), false)
 	send(player, "Lobby", { theoryRead = s.theoryRead })
 end
-local function result(player, s, passed, reason)
-	trace(player, "ActionOutcome", string.format("z=%.2f speed=%.2f elapsed=%.2f", s.block.Position.Z - s.origin.Z, s.speed, s.actionTime))
+local function result(player, s, outcome, reason)
+	trace(player, "DecisionOutcome", string.format("branch=%s z=%.2f elapsed=%.2f", s.branch, s.block.Position.Z - s.origin.Z, s.outcomeTime))
 	s.phase, s.throttle = "result", 0
-	s.results[s.sceneIndex] = { knowledge = s.knowledge, action = passed }
-	local knowledgeCount, actionCount = 0, 0
+	s.results[s.sceneIndex] = { knowledge = s.knowledge }
+	local knowledgeCount = 0
 	for _, score in pairs(s.results) do
 		if score.knowledge then knowledgeCount += 1 end
-		if score.action then actionCount += 1 end
 	end
 	send(player, "Result", {
-		knowledge = s.knowledge, action = passed, reason = reason, titleNl = s.definition.titleNl,
-		index = s.sceneIndex, total = #scenarios, knowledgeCount = knowledgeCount, actionCount = actionCount,
+		knowledge = s.knowledge, outcome = outcome, reason = reason, explanationNl = s.definition.explanationNl,
+		titleNl = s.definition.titleNl, index = s.sceneIndex, total = #scenarios, knowledgeCount = knowledgeCount,
 	})
 end
 local function createActor(parent, definition, origin)
@@ -200,6 +204,10 @@ end
 local function positionActor(s, x)
 	s.actor:PivotTo(CFrame.new(s.origin + Vector3.new(x, s.actorHeight, s.definition.laneZ)))
 end
+local function positionVehicle(s, z)
+	s.block.Position = s.origin + Vector3.new(3.5, 2, z)
+	s.handlebar.Position = s.block.Position + Vector3.new(0, 1.2, -1)
+end
 local function beginScene(player, s, index)
 	clearDwell(player, s)
 	clearScene(s)
@@ -207,13 +215,14 @@ local function beginScene(player, s, index)
 	s.definition = scenarios[s.sceneIndex]
 	s.results = s.results or {}
 	s.knowledge = false
+	s.branch, s.outcomeTime, s.approachTime = nil, 0, 0
 	local occupied = {}
 	for _, other in pairs(sessions) do if other.slot then occupied[other.slot] = true end end
 	local slot = 1
 	while occupied[slot] do slot += 1 end
 	s.slot = slot
 	s.token += 1
-	s.phase, s.sceneTime = "cinematic", 0
+	s.phase, s.sceneTime, s.speed, s.throttle = "cinematic", 0, 0, 0
 	s.origin = Vector3.new(slot * 160, 0, 200)
 	s.scene = Instance.new("Folder")
 	s.scene.Name, s.scene.Parent = s.definition.id .. "_" .. player.UserId, world
@@ -222,9 +231,6 @@ local function beginScene(player, s, index)
 	local roadColor = s.definition.unpaved and Color3.fromRGB(160, 125, 80) or Color3.fromRGB(45, 45, 50)
 	part(s.scene, "ApproachRoad", Vector3.new(14, 0.2, 80), o + Vector3.new(0, 0.6, 0), roadColor)
 	part(s.scene, "CrossingRoad", Vector3.new(80, 0.2, 14), o + Vector3.new(0, 0.75, -6.5), Color3.fromRGB(45, 45, 50))
-	local target = part(s.scene, "PracticeStopZone", Vector3.new(6, 0.1, 6), o + Vector3.new(3.5, 0.8, 6), Color3.fromRGB(190, 155, 35))
-	target.Transparency = 0.3
-	label(target, "OEFENVAK\nGeen verplicht stopteken")
 	if s.definition.actorKind == "tram" then
 		for _, z in ipairs({ -5, -8 }) do
 			part(s.scene, "Rail", Vector3.new(75, 0.2, 0.3), o + Vector3.new(0, 0.9, z), Color3.fromRGB(190, 190, 190))
@@ -232,9 +238,10 @@ local function beginScene(player, s, index)
 	end
 	s.actor, s.actorHeight = createActor(s.scene, s.definition, o)
 	positionActor(s, s.definition.startX)
-	s.block = part(s.scene, "PracticeBlock", Vector3.new(3, 2, 4), o + Vector3.new(3.5, 2, 24), Color3.fromRGB(40, 180, 210))
+	s.block = part(s.scene, "PracticeBlock", Vector3.new(3, 2, 4), o + Vector3.new(3.5, 2, START_Z), Color3.fromRGB(40, 180, 210))
+	s.handlebar = part(s.scene, "Handlebar", Vector3.new(2.8, 0.18, 0.18), s.block.Position + Vector3.new(0, 1.2, -1), Color3.fromRGB(35, 40, 45))
 	moveCharacter(player, o + Vector3.new(18, 5, 20), true)
-	send(player, "Cinematic", { origin = o, token = s.token, titleNl = s.definition.titleNl, index = s.sceneIndex, total = #scenarios })
+	send(player, "Cinematic", { origin = o, vehicle = s.block, sceneName = s.scene.Name, token = s.token, titleNl = s.definition.titleNl, index = s.sceneIndex, total = #scenarios })
 end
 
 local function setupPlayer(player)
@@ -277,8 +284,9 @@ remote.OnServerEvent:Connect(function(player, command, value, token)
 	local s = sessions[player]
 	if not s or type(command) ~= "string" then return end
 	local now = os.clock()
-	if now - s.lastRemote < 0.06 then return end
-	s.lastRemote = now
+	local rateKey = command == "Drive" and "lastDriveRemote" or "lastRemote"
+	if now - (s[rateKey] or 0) < 0.06 then return end
+	s[rateKey] = now
 	local root, humanoid = characterParts(player)
 	if not root or not humanoid or humanoid.Health <= 0 then return end
 	if command ~= "Drive" then
@@ -309,17 +317,14 @@ remote.OnServerEvent:Connect(function(player, command, value, token)
 			trace(player, "Reject:Answer", "invalid option index")
 			return
 		end
-		s.knowledge, s.phase = value == s.definition.correct, "answered"
-		send(player, "AnswerFeedback", { correct = s.knowledge,
-			text = s.definition.explanationNl })
-	elseif command == "BeginAction" and s.phase == "answered" and token == s.token then
-		s.phase, s.actionTime, s.stopped, s.speed, s.throttle = "action", 0, 0, 0, 0
-		s.lastDrive = now
-		send(player, "Action", { titleNl = s.definition.titleNl })
-	elseif command == "Drive" and s.phase == "action" and token == s.token and (value == 0 or value == 1) then
+		s.knowledge, s.phase = value == s.definition.correct, "outcome"
+		s.branch, s.outcomeTime, s.throttle, s.speed, s.impacted = s.definition.branches[value], 0, 0, 0, false
+		trace(player, "DecisionAccepted", "option=" .. value .. " branch=" .. s.branch)
+		send(player, "Outcome", { branch = s.branch, correct = s.knowledge, choiceNl = s.definition.options[value] })
+	elseif command == "Drive" and s.phase == "approach" and token == s.token and (value == 0 or value == 1) then
 		if s.throttle ~= value then trace(player, "Drive", value == 1 and "accelerate" or "brake") end
 		s.throttle, s.lastDrive = value, now
-	elseif command == "Return" and (s.phase == "result" or s.phase == "action" or s.phase == "question" or s.phase == "answered" or s.phase == "cinematic") and token == s.token then
+	elseif command == "Return" and (s.phase == "result" or s.phase == "approach" or s.phase == "question" or s.phase == "outcome" or s.phase == "cinematic") and token == s.token then
 		lobby(player, s)
 	elseif command == "NextScene" and s.phase == "result" and token == s.token and s.sceneIndex < #scenarios then
 		beginScene(player, s, s.sceneIndex + 1)
@@ -377,32 +382,52 @@ RunService.Heartbeat:Connect(function(dt)
 			local direction = s.definition.startX > 0 and -1 or 1
 			positionActor(s, s.definition.startX + direction * math.min(s.sceneTime, 4) * 4.5)
 			if s.sceneTime >= 4 then
-				s.phase = "question"
-				send(player, "Question", { prompt = s.definition.prompt, options = s.definition.options, titleNl = s.definition.titleNl, index = s.sceneIndex, total = #scenarios })
+				s.phase, s.approachTime, s.lastDrive = "approach", 0, os.clock()
+				send(player, "Approach", { vehicle = s.block, sceneName = s.scene.Name, token = s.token })
 			end
-		elseif s.phase == "action" then
+		elseif s.phase == "approach" then
 			local step = math.min(dt, 0.1)
-			s.actionTime += dt
-			local direction = s.definition.startX > 0 and -1 or 1
-			positionActor(s, -direction * 12 + direction * math.min(s.actionTime, 6) * 8)
+			s.approachTime += dt
 			if os.clock() - s.lastDrive > 0.5 and s.throttle ~= 0 then
 				trace(player, "DriveTimeout", "automatic brake: no input for 0.5s")
 				s.throttle = 0
 			end
-			s.speed = math.clamp(s.speed + (s.throttle == 1 and 8 or -20) * step, 0, 12)
-			s.block.Position -= Vector3.new(0, 0, s.speed * step)
-			local z = s.block.Position.Z - s.origin.Z
-			-- Training target, not a legal stop-line or a full yielding predicate.
-			if z - 2 <= 2.25 then result(player, s, false, "Je reed voorbij het oefenvak. Rem eerder.")
-			elseif z >= 5 and z <= 7 and s.speed < 0.1 then
-				if s.stopped == 0 then trace(player, "StopCheck", "stationary inside target zone; holding for 1s") end
-				s.stopped += step
-				if s.stopped >= 1 then result(player, s, true, "Je stond één seconde stil in het oefenvak. Alleen de stopactie is beoordeeld, niet het volledige voorrang verlenen.") end
-			else
-				if s.stopped > 0 then trace(player, "StopCheck", "hold reset: moved or left target zone") end
-				s.stopped = 0
+			s.speed = math.clamp(s.speed + (s.throttle == 1 and 6 or -16) * step, 0, 8)
+			local z = math.max(QUESTION_Z, s.block.Position.Z - s.origin.Z - s.speed * step)
+			positionVehicle(s, z)
+			if z <= QUESTION_Z then
+				s.phase, s.speed, s.throttle = "question", 0, 0
+				trace(player, "DecisionPoint", "first-person approach reached intersection")
+				send(player, "Question", { prompt = s.definition.prompt, options = s.definition.options, titleNl = s.definition.titleNl, index = s.sceneIndex, total = #scenarios })
+			elseif s.approachTime >= 45 then
+				lobby(player, s)
+				send(player, "Notice", "Oefening afgebroken: je reed niet naar het beslispunt. Je kunt opnieuw beginnen.")
 			end
-			if s.phase == "action" and s.actionTime >= 25 then result(player, s, false, "De oefentijd is voorbij. Probeer opnieuw.") end
+		elseif s.phase == "outcome" then
+			s.outcomeTime += math.min(dt, 0.1)
+			local t = s.outcomeTime
+			local direction = s.definition.startX > 0 and -1 or 1
+			if s.branch == "yield" then
+				positionActor(s, -direction * 12 + direction * math.min(t, 8) * 8)
+				local z = math.max(-24, QUESTION_Z - math.max(0, t - 4) * 8)
+				positionVehicle(s, z)
+				if z <= -24 then result(player, s, "safe", "Je verleent voorrang, wacht tot de ander voorbij is en rijdt daarna veilig verder. Dit vervolg werd automatisch afgespeeld.") end
+			else
+				-- Distinct normal-drive and rushed branches converge at a staged impact.
+				local speed = s.branch == "rush" and 14 or 9
+				local collisionTime = (QUESTION_Z - s.definition.laneZ) / speed
+				local fraction = math.min(1, t / collisionTime)
+				positionActor(s, -direction * 12 + (3.5 + direction * 12) * fraction)
+				positionVehicle(s, QUESTION_Z - (QUESTION_Z - s.definition.laneZ) * fraction)
+				if t >= collisionTime and not s.impacted then
+					s.impacted = true
+					trace(player, "Impact", "branch=" .. s.branch)
+					send(player, "Impact")
+				end
+				if t >= collisionTime + 1 then
+					result(player, s, "collision", "In deze demonstratie leidde doorrijden zonder voorrang te verlenen tot een botsing. Dit is een geënsceneerd gevolg, geen voorspelling dat iedere fout altijd zo afloopt.")
+				end
+			end
 		end
 	end
 end)
