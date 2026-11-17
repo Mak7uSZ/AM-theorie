@@ -8,26 +8,25 @@ Git хранит историю исходников. GitHub/GitLab хранит
 - `.gitignore` исключает временные файлы, секреты и локальные Studio places.
 - `.gitattributes` согласует окончания строк исходников.
 - Три полных исходных файла и инструкции восстановления на чистом Baseplate.
-- Удалённый репозиторий пока отсутствует: между ПК ещё ничего не синхронизируется.
+- Подключён `origin`: https://github.com/Mak7uSZ/AM-theorie.git. Для синхронизации выполняйте `push`/`pull`.
 
-## Один раз: подключить GitHub
+## Подключённый GitHub
 
-1. Войдите на GitHub и создайте **пустой** репозиторий, например `AM-TheorieSpel`. Можно выбрать Private. Не добавляйте автоматически README, license или gitignore — локальные файлы уже есть.
-2. Откройте PowerShell в папке проекта. Выполните, заменив `YOUR_ACCOUNT` своим именем:
+Репозиторий уже создан: https://github.com/Mak7uSZ/AM-theorie. Следующие команды нужны только для подключения существующей локальной копии, у которой ещё нет origin:
 
 ```powershell
-git remote add origin https://github.com/YOUR_ACCOUNT/AM-TheorieSpel.git
+git remote add origin https://github.com/Mak7uSZ/AM-theorie.git
 git push -u origin main
 ```
 
-3. При запросе Git выполните вход в браузере. Не вставляйте пароль или токен в исходники. Если origin уже добавлен, проверьте `git remote -v`; для исправления адреса используйте `git remote set-url origin ...`.
+При запросе Git выполните вход в браузере. Не вставляйте пароль или токен в исходники. Если origin уже добавлен, проверьте `git remote -v`; для исправления адреса используйте `git remote set-url origin ...`.
 
 ## Второй компьютер
 
 Установите Git и Roblox Studio. В PowerShell:
 
 ```powershell
-git clone https://github.com/YOUR_ACCOUNT/AM-TheorieSpel.git
+git clone https://github.com/Mak7uSZ/AM-theorie.git AM-TheorieSpel
 cd AM-TheorieSpel
 ```
 
