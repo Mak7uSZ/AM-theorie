@@ -6,6 +6,8 @@
 
 ## 0. Your immediate task
 
+**Owner update, 18 November 2026:** The target curriculum now uses eight visible sections: Wetgeving; Voertuigkennis; Gebruik van de weg; Voorrang en voor laten gaan; Bijzondere wegen; Veilig rijden en noodsituaties; Verkeerstekens; Verantwoord rijden. This supersedes the suggested topic grouping below. See `docs/CURRICULUM_REFERENCE_RU.md` for screenshot-derived requirements, future numeric/actor-selection/ordering formats, and `docs/AM_TOPIC_MAP_RU.md` for stable subtopic IDs. Introduce these formats incrementally; their specification does not mean they have been implemented. The owner learns by building the game, about four small subtopics per week.
+
 Do **not** generate the entire project in one giant answer. First explain the Roblox Studio basics the owner needs, then implement the first tested vertical slice outlined in Milestone 1 below. If working inside a local repository, create the files and the repository structure; if no Roblox Studio access, **do not claim the game has been tested in Studio**. Provide exact manual Explorer paths, object types, and Play Mode verification steps. Ask for a screenshot of the Output window if a runtime error occurs. Do not introduce Rojo, GitHub Actions, external plugins, or complicated tooling before the owner can run a basic version; these may be introduced later as optional upgrades.
 
 ## 1. Game overview / non-negotiable design
