@@ -66,22 +66,18 @@ end
 local fakePlayers = { PlayerAdded = signal(), PlayerRemoving = signal(), GetPlayers = function() return {} end }
 local fakeRunService = { Heartbeat = signal() }
 local fakeReplicatedStorage = Instance.new("Folder")
-local fakeModule = Instance.new("ModuleScript")
-fakeModule.Name, fakeModule.Parent = "TopicContent", fakeReplicatedStorage
 local workspace = Instance.new("Folder")
 local task = { spawn = function(fn, ...) fn(...) end }
-local contentForTest = (function()
---[[TOPIC_CONTENT]]
-end)()
-local function require(module)
-	assert(module == fakeModule)
-	return contentForTest
-end
-local services = { Players = fakePlayers, ReplicatedStorage = fakeReplicatedStorage, RunService = fakeRunService }
+local services = { Players = fakePlayers, ReplicatedStorage = fakeReplicatedStorage, RunService = fakeRunService, ServerScriptService = Instance.new("Folder") }
 local game = { GetService = function(_, name) return assert(services[name]) end }
 
---[[SERVER_SOURCE]]
+--[[STUDIO_MODULES]]
 
+--[[GAME_SOURCE]]
+
+local contentForTest = Catalog
+local scenarios = trainingByTopic.voorrang.questions
+local signCards = trainingByTopic.verkeerstekens.questions
 local checks = 0
 local function expect(condition, message)
 	checks += 1
@@ -238,6 +234,7 @@ for sceneIndex, definition in ipairs(scenarios) do
 	local branchTimes = {}
 	for option = 1, #definition.options do
 		s.results = {}
+		s.activeTopic = "voorrang"
 		beginScene(p, s, sceneIndex)
 		question(p)
 		request(p, "Answer", option)

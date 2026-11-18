@@ -72,8 +72,6 @@ local fakeRemote = Instance.new("RemoteEvent")
 fakeRemote.Name, fakeRemote.OnClientEvent = "PrototypeEvent", signal()
 local fakeStorage = Instance.new("Folder")
 fakeRemote.Parent = fakeStorage
-local fakeModule = Instance.new("ModuleScript")
-fakeModule.Name, fakeModule.Parent = "TopicContent", fakeStorage
 local fakePlayer = Instance.new("Player")
 local playerGui = Instance.new("Folder")
 playerGui.Name, playerGui.Parent = "PlayerGui", fakePlayer
@@ -87,13 +85,11 @@ local workspace = { CurrentCamera = { FieldOfView = 70 } }
 local services = { Players = { LocalPlayer = fakePlayer }, ReplicatedStorage = fakeStorage, RunService = fakeRunService, UserInputService = input }
 local game = { GetService = function(_, name) return assert(services[name]) end }
 local task = { defer = function(fn) fn() end, delay = function() end }
-local contentForTest = (function()
---[[TOPIC_CONTENT]]
-end)()
-local function require(_) return contentForTest end
+--[[STUDIO_MODULES]]
 
---[[CLIENT_SOURCE]]
+--[[GAME_SOURCE]]
 
+local contentForTest = Catalog
 local checks = 0
 local function expect(condition, message) checks += 1; assert(condition, message) end
 local function emit(kind, data) fakeRemote.OnClientEvent:Fire(kind, data) end
@@ -159,8 +155,9 @@ for index, signPage in ipairs(signsTopic.pages) do
 	expect(not status.Visible, "Signs book source row must not collide with global HUD")
 	expect(panel:FindFirstChild("BookSource").Text == "Bron: " .. signsTopic.sourceName, "Reviewed sign page should display its source")
 end
-emit("SignQuestion", { token = 99, index = 1, total = 4, signCode = "B6", options = { "One", "Two", "Three", "Four" } })
+emit("SignQuestion", { topicId = "verkeerstekens", token = 99, index = 1, total = 4, signCode = "B6", options = { "One", "Two", "Three", "Four" } })
 expect(mode == "sign_question" and token == 99 and descendant(panel, "RoadSignSketch"), "Sign quiz must show its schematic and session token")
+expect(panel:FindFirstChild("PanelTitle").Text == signsTopic.titleNl .. " | 1/4", "Sign quiz uses the title of the current topic")
 expect(not firstPerson and not decisionAnswers.Visible and not status.Visible, "Sign cards must not leave first-person driving overlays active")
 local clicked = 0
 for _, child in ipairs(panel:GetChildren()) do

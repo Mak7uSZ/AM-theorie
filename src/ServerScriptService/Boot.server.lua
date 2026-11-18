@@ -2,7 +2,13 @@
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
+local ServerScriptService = game:GetService("ServerScriptService")
 local Catalog = require(ReplicatedStorage:WaitForChild("TopicContent"))
+local trainingFolder = ServerScriptService:WaitForChild("Training")
+local trainingByTopic = {}
+for _, topicId in ipairs(Catalog.order) do
+	trainingByTopic[topicId] = require(trainingFolder:WaitForChild(topicId))
+end
 
 local remote = Instance.new("RemoteEvent")
 remote.Name = "PrototypeEvent"
@@ -15,42 +21,6 @@ local DWELL = 5
 local QUESTION_Z = 18
 local START_Z = 36
 local DEBUG_LOGS = true
--- Server-only original questions. Public metadata contains IDs, never keys.
-local scenarios = {
-	{
-		id = "cyclist_right_01", titleNl = "Fietser van rechts", actorKind = "bicycle", startX = 30, laneZ = -9.5,
-		prompt = "Je nadert op je bromfiets een gelijkwaardig kruispunt van twee verharde wegen. Een fietser komt van rechts en rijdt rechtdoor. Er zijn geen voorrangstekens of werkende verkeerslichten. Aan wie verleen je voorrang?",
-		options = { "Ik rijd door: een bromfiets gaat vóór een fiets.", "Ik verleen de fietser van rechts voorrang.", "Ik versnel om nog vóór de fietser langs te rijden." },
-		branches = { "drive", "yield", "rush" },
-		correct = 2, explanationNl = "De fietser is een bestuurder die voor jou van rechts komt. Je verleent de fietser voorrang.",
-	},
-	{
-		id = "unpaved_01", titleNl = "Van onverhard naar verhard", actorKind = "car", startX = -30, laneZ = -3.5, unpaved = true,
-		prompt = "Je rijdt op een onverharde weg naar een kruispunt. Van links komt een auto op de verharde weg. Er zijn geen voorrangstekens of werkende verkeerslichten. Wat doe je?",
-		options = { "Ik verleen de auto op de verharde weg voorrang.", "Ik rijd eerst, omdat de auto van links komt.", "Ik rijd eerst, omdat ik op een bromfiets rijd." },
-		branches = { "yield", "drive", "rush" },
-		correct = 1, explanationNl = "Bestuurders op een onverharde weg verlenen voorrang aan bestuurders op een verharde weg, ook als die van links komen.",
-	},
-	{
-		id = "tram_demo_01", titleNl = "Tram van links", actorKind = "tram", startX = -30, laneZ = -6.5,
-		prompt = "Je nadert een kruispunt zonder voorrangsregeling, werkende verkeerslichten of verkeersregelaar. Een tram komt van links. Wat doe je?",
-		options = { "Ik rijd door, omdat de tram van links komt.", "Ik versnel om nog vóór de tram langs te rijden.", "Ik verleen de tram voorrang." },
-		branches = { "drive", "rush", "yield" },
-		correct = 3, explanationNl = "Bij deze ongeregelde kruising verleen je de tram voorrang, ook als de tram van links komt. Dit betekent niet dat een tram in iedere situatie voorrang heeft.",
-	},
-}
--- Recognition keys stay server-only; the public book contains source labels.
-local signOptions = {
-	"Voorrangsweg", "Einde voorrangsweg",
-	"Verleen voorrang aan bestuurders op de kruisende weg",
-	"Stop; verleen voorrang aan bestuurders op de kruisende weg",
-}
-local signCards = {
-	{ id = "sign_b6_01", signCode = "B6", correct = 3 },
-	{ id = "sign_b1_01", signCode = "B1", correct = 1 },
-	{ id = "sign_b7_01", signCode = "B7", correct = 4 },
-	{ id = "sign_b2_01", signCode = "B2", correct = 2 },
-}
 local function trace(player, event, details)
 	if not DEBUG_LOGS then return end
 	local s = sessions[player]
@@ -151,7 +121,7 @@ local function progressSnapshot(s)
 		local progress = s.topics[topicId]
 		snapshot[topicId] = {
 			theoryRead = progress.theoryRead, bestCorrect = progress.bestCorrect, trainingCompleted = progress.trainingCompleted,
-			totalQuestions = #Catalog.topics[topicId].questionIds,
+			totalQuestions = #trainingByTopic[topicId].questions,
 		}
 	end
 	return { topics = snapshot }
@@ -195,14 +165,15 @@ local function result(player, s, outcome, reason)
 	for _, score in pairs(s.results) do
 		if score.knowledge then knowledgeCount += 1 end
 	end
-	if s.sceneIndex == #scenarios then
-		local progress = s.topics.voorrang
+	local total = #trainingByTopic[s.activeTopic].questions
+	if s.sceneIndex == total then
+		local progress = s.topics[s.activeTopic]
 		progress.trainingCompleted = true
 		progress.bestCorrect = math.max(progress.bestCorrect or 0, knowledgeCount)
 	end
 	send(player, "Result", {
 		knowledge = s.knowledge, outcome = outcome, reason = reason, explanationNl = s.definition.explanationNl,
-		titleNl = s.definition.titleNl, index = s.sceneIndex, total = #scenarios, knowledgeCount = knowledgeCount,
+		titleNl = s.definition.titleNl, index = s.sceneIndex, total = total, knowledgeCount = knowledgeCount,
 	})
 end
 local function createActor(parent, definition, origin)
@@ -251,9 +222,9 @@ end
 local function beginScene(player, s, index)
 	clearDwell(player, s)
 	clearScene(s)
-	s.activeTopic = "voorrang"
+	local questions = trainingByTopic[s.activeTopic].questions
 	s.sceneIndex = index or 1
-	s.definition = scenarios[s.sceneIndex]
+	s.definition = questions[s.sceneIndex]
 	s.results = s.results or {}
 	s.knowledge = false
 	s.branch, s.outcomeTime, s.approachTime = nil, 0, 0
@@ -282,21 +253,25 @@ local function beginScene(player, s, index)
 	s.block = part(s.scene, "PracticeBlock", Vector3.new(3, 2, 4), o + Vector3.new(3.5, 2, START_Z), Color3.fromRGB(40, 180, 210))
 	s.handlebar = part(s.scene, "Handlebar", Vector3.new(2.8, 0.18, 0.18), s.block.Position + Vector3.new(0, 1.2, -1), Color3.fromRGB(35, 40, 45))
 	moveCharacter(player, o + Vector3.new(18, 5, 20), true)
-	send(player, "Cinematic", { origin = o, vehicle = s.block, sceneName = s.scene.Name, token = s.token, titleNl = s.definition.titleNl, index = s.sceneIndex, total = #scenarios })
+	send(player, "Cinematic", { origin = o, vehicle = s.block, sceneName = s.scene.Name, token = s.token, titleNl = s.definition.titleNl, index = s.sceneIndex, total = #questions })
 end
 local function beginSignCard(player, s, index)
 	clearDwell(player, s)
 	clearScene(s)
-	s.activeTopic, s.quizIndex, s.definition = "verkeerstekens", index or 1, signCards[index or 1]
+	local training = trainingByTopic[s.activeTopic]
+	s.quizIndex = index or 1
+	s.definition = training.questions[s.quizIndex]
 	s.quizResults = s.quizResults or {}
 	s.phase, s.token = "sign_question", s.token + 1
 	local root = characterParts(player)
 	if root then root.Anchored = true end
 	send(player, "SignQuestion", {
 		topicId = s.activeTopic, token = s.token, signCode = s.definition.signCode,
-		index = s.quizIndex, total = #signCards, options = signOptions,
+		index = s.quizIndex, total = #training.questions, options = training.options,
 	})
 end
+
+local trainingStarts = { scene = beginScene, sign = beginSignCard }
 
 local function setupPlayer(player)
 	if sessions[player] then return end
@@ -345,6 +320,7 @@ remote.OnServerEvent:Connect(function(player, command, value, token)
 	s[rateKey] = now
 	local root, humanoid = characterParts(player)
 	if not root or not humanoid or humanoid.Health <= 0 then return end
+	local training = s.activeTopic and trainingByTopic[s.activeTopic]
 	if command ~= "Drive" then
 		local scalar = type(value) == "number" or type(value) == "boolean"
 		trace(player, "Request:" .. command, "value=" .. (scalar and tostring(value) or type(value)))
@@ -368,21 +344,22 @@ remote.OnServerEvent:Connect(function(player, command, value, token)
 		s.topics[s.bookTopic].theoryRead = true
 		lobby(player, s)
 	elseif command == "SignAnswer" and s.phase == "sign_question" and token == s.token then
-		if type(value) ~= "number" or value % 1 ~= 0 or value < 1 or value > #signOptions then return end
+		if type(value) ~= "number" or value % 1 ~= 0 or value < 1 or value > #training.options then return end
 		local correct = value == s.definition.correct
 		s.quizResults[s.quizIndex], s.phase = correct, "sign_result"
 		local correctCount = 0
 		for _, answer in pairs(s.quizResults) do if answer then correctCount += 1 end end
-		if s.quizIndex == #signCards then
-			local progress = s.topics.verkeerstekens
+		local total = #training.questions
+		if s.quizIndex == total then
+			local progress = s.topics[s.activeTopic]
 			progress.trainingCompleted = true
 			progress.bestCorrect = math.max(progress.bestCorrect or 0, correctCount)
 		end
 		send(player, "SignResult", {
-			correct = correct, labelNl = signOptions[s.definition.correct], signCode = s.definition.signCode,
-			index = s.quizIndex, total = #signCards, correctCount = correctCount,
+			correct = correct, labelNl = training.options[s.definition.correct], signCode = s.definition.signCode,
+			index = s.quizIndex, total = total, correctCount = correctCount,
 		})
-	elseif command == "NextSign" and s.phase == "sign_result" and token == s.token and s.quizIndex < #signCards then
+	elseif command == "NextSign" and s.phase == "sign_result" and token == s.token and s.quizIndex < #training.questions then
 		beginSignCard(player, s, s.quizIndex + 1)
 	elseif command == "RetrySign" and s.phase == "sign_result" and token == s.token then
 		beginSignCard(player, s, s.quizIndex)
@@ -401,7 +378,7 @@ remote.OnServerEvent:Connect(function(player, command, value, token)
 		s.throttle, s.lastDrive = value, now
 	elseif command == "Return" and (s.phase == "result" or s.phase == "approach" or s.phase == "question" or s.phase == "outcome" or s.phase == "cinematic" or s.phase == "sign_question" or s.phase == "sign_result") and token == s.token then
 		lobby(player, s)
-	elseif command == "NextScene" and s.phase == "result" and token == s.token and s.sceneIndex < #scenarios then
+	elseif command == "NextScene" and s.phase == "result" and token == s.token and s.sceneIndex < #training.questions then
 		beginScene(player, s, s.sceneIndex + 1)
 	elseif command == "RetryScene" and s.phase == "result" and token == s.token then
 		beginScene(player, s, s.sceneIndex)
@@ -450,8 +427,10 @@ RunService.Heartbeat:Connect(function(dt)
 						s.phase, s.page, s.bookTopic = "book", 1, selected.topicId
 						root.Anchored = true
 						sendBook(player, s)
-					elseif selected.topicId == "verkeerstekens" then beginSignCard(player, s)
-					else beginScene(player, s) end
+					else
+						s.activeTopic = selected.topicId
+						trainingStarts[trainingByTopic[s.activeTopic].kind](player, s)
+					end
 				end
 			else clearDwell(player, s) end
 		elseif s.phase == "cinematic" then
@@ -475,7 +454,7 @@ RunService.Heartbeat:Connect(function(dt)
 			if z <= QUESTION_Z then
 				s.phase, s.speed, s.throttle = "question", 0, 0
 				trace(player, "DecisionPoint", "first-person approach reached intersection")
-				send(player, "Question", { prompt = s.definition.prompt, options = s.definition.options, titleNl = s.definition.titleNl, index = s.sceneIndex, total = #scenarios })
+				send(player, "Question", { prompt = s.definition.prompt, options = s.definition.options, titleNl = s.definition.titleNl, index = s.sceneIndex, total = #trainingByTopic[s.activeTopic].questions })
 			elseif s.approachTime >= 45 then
 				lobby(player, s)
 				send(player, "Notice", "Oefening afgebroken: je reed niet naar het beslispunt. Je kunt opnieuw beginnen.")

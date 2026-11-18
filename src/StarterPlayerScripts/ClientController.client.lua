@@ -215,7 +215,7 @@ local function showLobby()
 	restoreCamera()
 	panel.Visible, toolbar.Visible = false, true
 	status.Visible = true
-	status.Text = "Kies een onderwerp: Voorrang of Verkeerstekens. Elke training heeft een eigen boek."
+	status.Text = "Kies een onderwerp in de lobby. Elke training heeft een eigen boek."
 end
 local showMenu
 local function overlay(kind, fromMenu)
@@ -247,7 +247,7 @@ showMenu = function()
 	mode = "menu"
 	restoreCamera()
 	status.Text = "AM Theory Simulator | technisch prototype"
-	heading("AM Theory Simulator", "Twee onderwerpen: Voorrang en Verkeerstekens\n\nVoorrang: 3 oefenscènes van dichtbij.\nVerkeerstekens: leer en oefen B1, B2, B6 en B7.")
+	heading("AM Theory Simulator", "Kies een onderwerp in de lobby, lees de theorie en oefen met vragen en verkeerssituaties.")
 	menuBackdrop.Visible, panel.BackgroundTransparency = true, 1
 	button(panel, "Spelen", 0.3, 0.68, 0.4, function() send("Play") end)
 	button(panel, "Instellingen", 0.08, 0.84, 0.38, function() overlay("settings", true) end)
@@ -310,7 +310,7 @@ remote.OnClientEvent:Connect(function(kind, data)
 				end
 			end)
 		else
-			text(panel, "Illustratie niet ingesteld\n\nControleer TopicContent.images. Gebruik op de pagina een sleutel zoals 'bestuurders' of een geldig afbeeldings-ID.", UDim2.fromScale(0.53, 0.21), UDim2.fromScale(0.43, 0.43))
+			text(panel, "Illustratie niet ingesteld\n\nControleer de afbeeldingen in de theoriemodule. Gebruik op de pagina een geldige sleutel of een geldig afbeeldings-ID.", UDim2.fromScale(0.53, 0.21), UDim2.fromScale(0.43, 0.43))
 		end
 		local caption = text(panel, data.captionNl, UDim2.fromScale(0.04, 0.64), UDim2.fromScale(0.92, 0.08))
 		caption:FindFirstChildOfClass("UITextSizeConstraint").MaxTextSize = 13
@@ -325,7 +325,8 @@ remote.OnClientEvent:Connect(function(kind, data)
 	elseif kind == "SignQuestion" then
 		restoreCamera()
 		mode, token = "sign_question", data.token
-		local prompt = heading("Verkeerstekens | " .. data.index .. "/" .. data.total, "Welke omschrijving hoort bij dit bord?")
+		local topic = Catalog.topics[data.topicId]
+		local prompt = heading((topic and topic.titleNl or "Oefening") .. " | " .. data.index .. "/" .. data.total, "Welke omschrijving hoort bij dit bord?")
 		prompt.Position, prompt.Size = UDim2.fromScale(0.04, 0.16), UDim2.fromScale(0.92, 0.10)
 		local picture = Instance.new("Frame")
 		picture.Position, picture.Size = UDim2.fromScale(0.3, 0.28), UDim2.fromScale(0.4, 0.33)

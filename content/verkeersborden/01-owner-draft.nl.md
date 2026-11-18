@@ -5,7 +5,7 @@ reviewStatus: draft
 sourceName: RVV 1990, bijlage 1 en artikelen 15, 18, 62–64, 79 en 84
 sourceUrl: https://wetten.overheid.nl/BWBR0004825/#Bijlage1
 
-Hier staat de oorspronkelijke uitleg van de projecteigenaar van 18 november 2026. De nagekeken leerlingentekst staat in `src/ReplicatedStorage/TopicContent.lua`, onder `verkeerstekens.pages`.
+Hier staat de oorspronkelijke uitleg van de projecteigenaar van 18 november 2026. De nagekeken leerlingentekst staat in `src/ReplicatedStorage/Theory/verkeerstekens.lua`, onder `pages`.
 
 ## Eerste blok: B1, B2, B6 en B7
 

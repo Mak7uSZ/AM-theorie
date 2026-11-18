@@ -2,9 +2,11 @@
 
 Автор нидерландской теории — владелец проекта. Книга Voorrang помечена `CONCEPT` и имеет статус `awaiting_review`. Четыре страницы Verkeerstekens о B1, B2, B6 и B7 имеют статус `reviewed`.
 
-Первый авторский текст сохранён: [оригинал](../content/voorrang/01-owner-draft.nl.md), [согласованная редакция и источники](../content/voorrang/01-review.nl.md). По просьбе автора редакция включена в шесть страниц `TopicContent` со статусом `awaiting_review` и заметной пометкой CONCEPT. Иллюстрации сохранены в `assets/theory/voorrang`; для показа в Roblox нужны импорт и заполнение ID по [инструкции урока 2](LESSON_02_RU.md).
+Шесть страниц Voorrang со статусом `awaiting_review` находятся в [модуле теории Voorrang](../src/ReplicatedStorage/Theory/voorrang.lua). Сохранены [оригинал](../content/voorrang/01-owner-draft.nl.md), [согласованная редакция и источники](../content/voorrang/01-review.nl.md) и [инструкция по иллюстрациям](LESSON_02_RU.md).
 
-Для B1, B2, B6 и B7 сохранён оригинал владельца. Проверенная редакция с его примерами находится в `TopicContent`, в `verkeerstekens.pages`. [Авторский текст](../content/verkeersborden/01-owner-draft.nl.md) · [Источники и установка](LESSON_05_RU.md#источники-и-проверка-теории).
+Для B1, B2, B6 и B7 проверенная редакция с примерами владельца находится в [модуле теории Verkeerstekens](../src/ReplicatedStorage/Theory/verkeerstekens.lua). [Авторский текст](../content/verkeersborden/01-owner-draft.nl.md) · [Источники](LESSON_05_RU.md#источники-и-проверка-теории).
+
+При расширении книги добавляйте страницы в `pages` её модуля. Для новой станции создайте модуль в `Theory` и одноимённый модуль в `Training`, затем добавьте идентификатор в `order` в `TopicContent`. Берите за образец формат `scene` из Voorrang или `sign` из Verkeerstekens. Идентификаторы в `questionIds` должны совпадать с порядком заданий в серверном модуле. Один раздел может объединять несколько учебных блоков.
 
 Для будущих страниц берём правила дорожного движения из RVV 1990, а структуру экзамена сверяем с материалами CBR. [RVV 1990](https://wetten.overheid.nl/BWBR0004825/) · [CBR](https://www.cbr.nl/).
 
