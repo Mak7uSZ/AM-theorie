@@ -247,7 +247,7 @@ showMenu = function()
 	mode = "menu"
 	restoreCamera()
 	status.Text = "AM Theory Simulator | technisch prototype"
-	heading("AM Theory Simulator", "Twee onderwerpen: Voorrang en Verkeerstekens\n\nVoorrang: 3 oefenscènes van dichtbij.\nVerkeerstekens: B1, B2, B6 en B7 herkennen.\n\nConcept: eigen uitleg bij de borden volgt. Geen officiële CBR-les.")
+	heading("AM Theory Simulator", "Twee onderwerpen: Voorrang en Verkeerstekens\n\nVoorrang: 3 oefenscènes van dichtbij.\nVerkeerstekens: leer en oefen B1, B2, B6 en B7.")
 	menuBackdrop.Visible, panel.BackgroundTransparency = true, 1
 	button(panel, "Spelen", 0.3, 0.68, 0.4, function() send("Play") end)
 	button(panel, "Instellingen", 0.08, 0.84, 0.38, function() overlay("settings", true) end)
@@ -282,7 +282,9 @@ remote.OnClientEvent:Connect(function(kind, data)
 		mode = "book"
 		local topic = Catalog.topics[data.topicId or Catalog.defaultTopicId]
 		local body = heading(data.titleNl .. " | " .. data.page .. "/" .. data.total, data.text)
-		local source = text(panel, "CONCEPT • " .. (data.reviewStatus == "draft" and "eigen uitleg volgt" or "actualiteitscontrole open") .. " • Bron: " .. (data.sourceName or topic.sourceName), UDim2.fromScale(0.04, 0.15), UDim2.fromScale(0.92, 0.04))
+		local sourcePrefix = data.reviewStatus == "reviewed" and "Bron: " or "CONCEPT • Bron: "
+		local source = text(panel, sourcePrefix .. (data.sourceName or topic.sourceName), UDim2.fromScale(0.04, 0.15), UDim2.fromScale(0.92, 0.04))
+		source.Name = "BookSource"
 		source:FindFirstChildOfClass("UITextSizeConstraint").MaxTextSize = 12
 		body.Position, body.Size = UDim2.fromScale(0.04, 0.23), UDim2.fromScale(0.45, 0.39)
 		body.TextXAlignment, body.TextYAlignment = Enum.TextXAlignment.Left, Enum.TextYAlignment.Top
@@ -323,7 +325,7 @@ remote.OnClientEvent:Connect(function(kind, data)
 	elseif kind == "SignQuestion" then
 		restoreCamera()
 		mode, token = "sign_question", data.token
-		local prompt = heading("Verkeerstekens | " .. data.index .. "/" .. data.total, "Welke omschrijving hoort bij dit bord? | CONCEPT")
+		local prompt = heading("Verkeerstekens | " .. data.index .. "/" .. data.total, "Welke omschrijving hoort bij dit bord?")
 		prompt.Position, prompt.Size = UDim2.fromScale(0.04, 0.16), UDim2.fromScale(0.92, 0.10)
 		local picture = Instance.new("Frame")
 		picture.Position, picture.Size = UDim2.fromScale(0.3, 0.28), UDim2.fromScale(0.4, 0.33)
@@ -338,7 +340,7 @@ remote.OnClientEvent:Connect(function(kind, data)
 	elseif kind == "SignResult" then
 		mode = "sign_result"
 		heading(data.correct and "Goed herkend!" or "Nog even oefenen", "Omschrijving bij " .. data.signCode .. ":\n" .. data.labelNl ..
-			"\n\nJe oefent nu herkenning. De eigen theorie-uitleg volgt.\n\nDeze oefenronde: " .. data.correctCount .. "/" .. data.index .. " goed. Herkansen vervangt je antwoord.")
+			"\n\nDeze oefenronde: " .. data.correctCount .. "/" .. data.index .. " goed. Herkansen vervangt je antwoord.")
 		button(panel, "Opnieuw", 0.05, 0.72, 0.40, function() send("RetrySign") end)
 		if data.index < data.total then button(panel, "Volgend bord", 0.55, 0.72, 0.40, function() send("NextSign") end) end
 		button(panel, "Terug naar lobby", 0.2, 0.86, 0.6, function() send("Return") end)

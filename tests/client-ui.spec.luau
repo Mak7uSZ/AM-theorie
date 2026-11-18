@@ -105,9 +105,11 @@ overlay("settings", true)
 expect(menuBackdrop.Visible and not status.Visible, "Menu settings must keep world covered without title overlap")
 emit("Lobby", { topics = { voorrang = { theoryRead = false }, verkeerstekens = { theoryRead = false } } })
 expect(not menuBackdrop.Visible and status.Visible and not panel.Visible, "Only Play/Lobby transition may reveal lobby")
-local page = contentForTest.topics.voorrang.pages[1]
-emit("Book", { page = 1, total = 6, titleNl = page.titleNl, text = page.text, imageKey = page.imageKey, captionNl = page.captionNl })
+local priorityTopic = contentForTest.topics.voorrang
+local page = priorityTopic.pages[1]
+emit("Book", { page = 1, total = 6, titleNl = page.titleNl, text = page.text, imageKey = page.imageKey, captionNl = page.captionNl, reviewStatus = priorityTopic.reviewStatus })
 expect(not status.Visible and panel.Visible, "Book must not share global status layer")
+expect(panel:FindFirstChild("BookSource").Text:find("CONCEPT"), "Book pending review must show its status")
 local title = panel:FindFirstChild("PanelTitle")
 expect(title.Position.Y.Scale + title.Size.Y.Scale < 0.15, "Book title must end before source row")
 emit("Cinematic", { token = 1, origin = vector(0, 0, 0), sceneName = "Test", titleNl = "Test", index = 1, total = 3 })
@@ -149,11 +151,13 @@ local function descendant(node, name)
 		if found then return found end
 	end
 end
-for index, signPage in ipairs(contentForTest.topics.verkeerstekens.pages) do
-	emit("Book", { topicId = "verkeerstekens", page = index, total = 4, titleNl = signPage.titleNl, text = signPage.text, signCode = signPage.signCode, captionNl = signPage.captionNl, reviewStatus = "draft" })
+local signsTopic = contentForTest.topics.verkeerstekens
+for index, signPage in ipairs(signsTopic.pages) do
+	emit("Book", { topicId = "verkeerstekens", page = index, total = #signsTopic.pages, titleNl = signPage.titleNl, text = signPage.text, signCode = signPage.signCode, captionNl = signPage.captionNl, reviewStatus = signsTopic.reviewStatus })
 	local sketch = descendant(panel, "RoadSignSketch")
 	expect(sketch and #sketch:GetChildren() > 3, "Every sign book page must render a real schematic without image ID")
 	expect(not status.Visible, "Signs book source row must not collide with global HUD")
+	expect(panel:FindFirstChild("BookSource").Text == "Bron: " .. signsTopic.sourceName, "Reviewed sign page should display its source")
 end
 emit("SignQuestion", { token = 99, index = 1, total = 4, signCode = "B6", options = { "One", "Two", "Three", "Four" } })
 expect(mode == "sign_question" and token == 99 and descendant(panel, "RoadSignSketch"), "Sign quiz must show its schematic and session token")
