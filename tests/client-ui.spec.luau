@@ -67,7 +67,7 @@ function methods:GetPropertyChangedSignal(property)
 	self.signals[property] = self.signals[property] or signal()
 	return self.signals[property]
 end
-function methods:FireServer(...) end
+function methods:FireServer(...) self.lastRequest = {...} end
 local fakeRemote = Instance.new("RemoteEvent")
 fakeRemote.Name, fakeRemote.OnClientEvent = "PrototypeEvent", signal()
 local fakeStorage = Instance.new("Folder")
@@ -103,9 +103,9 @@ expect(backdropGui.IgnoreGuiInset and not gui.IgnoreGuiInset, "Full backdrop and
 expect(not status.Visible, "Global status must not cover menu title")
 overlay("settings", true)
 expect(menuBackdrop.Visible and not status.Visible, "Menu settings must keep world covered without title overlap")
-emit("Lobby", { theoryRead = false })
+emit("Lobby", { topics = { voorrang = { theoryRead = false }, verkeerstekens = { theoryRead = false } } })
 expect(not menuBackdrop.Visible and status.Visible and not panel.Visible, "Only Play/Lobby transition may reveal lobby")
-local page = contentForTest.pages[1]
+local page = contentForTest.topics.voorrang.pages[1]
 emit("Book", { page = 1, total = 6, titleNl = page.titleNl, text = page.text, imageKey = page.imageKey, captionNl = page.captionNl })
 expect(not status.Visible and panel.Visible, "Book must not share global status layer")
 local title = panel:FindFirstChild("PanelTitle")
@@ -142,4 +142,35 @@ expect(not decisionAnswers.Visible and not menuBackdrop.Visible, "Respawn must c
 expect(workspace.CurrentCamera.FieldOfView == 70, "Camera settings must restore on reset")
 emit("Menu")
 expect(menuBackdrop.Visible and not status.Visible, "Returning menu must restore fullscreen backdrop")
+local function descendant(node, name)
+	if node.Name == name then return node end
+	for _, child in ipairs(node:GetChildren()) do
+		local found = descendant(child, name)
+		if found then return found end
+	end
+end
+for index, signPage in ipairs(contentForTest.topics.verkeerstekens.pages) do
+	emit("Book", { topicId = "verkeerstekens", page = index, total = 4, titleNl = signPage.titleNl, text = signPage.text, signCode = signPage.signCode, captionNl = signPage.captionNl, reviewStatus = "draft" })
+	local sketch = descendant(panel, "RoadSignSketch")
+	expect(sketch and #sketch:GetChildren() > 3, "Every sign book page must render a real schematic without image ID")
+	expect(not status.Visible, "Signs book source row must not collide with global HUD")
+end
+emit("SignQuestion", { token = 99, index = 1, total = 4, signCode = "B6", options = { "One", "Two", "Three", "Four" } })
+expect(mode == "sign_question" and token == 99 and descendant(panel, "RoadSignSketch"), "Sign quiz must show its schematic and session token")
+expect(not firstPerson and not decisionAnswers.Visible and not status.Visible, "Sign cards must not leave first-person driving overlays active")
+local clicked = 0
+for _, child in ipairs(panel:GetChildren()) do
+	if child:IsA("TextButton") and child.Text ~= "Naar lobby" then
+		clicked += 1
+		child.Activated:Fire()
+		expect(fakeRemote.lastRequest[1] == "SignAnswer" and fakeRemote.lastRequest[2] == clicked and fakeRemote.lastRequest[3] == 99, "Each sign option must send its own index and token")
+	end
+end
+expect(clicked == 4, "Sign question must have four options")
+emit("SignResult", { correct = true, signCode = "B6", labelNl = "Test label", index = 1, total = 4, correctCount = 1 })
+expect(mode == "sign_result" and panel.Visible and not ridingHud.Visible, "Recognition feedback must keep controls clean")
+emit("Lobby", { topics = { voorrang = { theoryRead = false }, verkeerstekens = { theoryRead = true, trainingCompleted = true, bestCorrect = 4 } } })
+expect(topicProgress.verkeerstekens.bestCorrect == 4 and not topicProgress.voorrang.theoryRead, "Client progress must preserve independent topics")
+overlay("progress", false)
+expect(not status.Visible and panel.Visible, "Progress with two topics must not overlap status")
 actualPrint(string.format("PASS: %d client UI checks (mock objects; visual Studio check still required).", checks))

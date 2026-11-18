@@ -2,7 +2,7 @@
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
-local Content = require(ReplicatedStorage:WaitForChild("TopicContent"))
+local Catalog = require(ReplicatedStorage:WaitForChild("TopicContent"))
 
 local remote = Instance.new("RemoteEvent")
 remote.Name = "PrototypeEvent"
@@ -39,12 +39,24 @@ local scenarios = {
 		correct = 3, explanationNl = "Bij deze ongeregelde kruising verleen je de tram voorrang, ook als de tram van links komt. Dit betekent niet dat een tram in iedere situatie voorrang heeft.",
 	},
 }
+-- Recognition keys stay server-only; the public book contains source labels.
+local signOptions = {
+	"Voorrangsweg", "Einde voorrangsweg",
+	"Verleen voorrang aan bestuurders op de kruisende weg",
+	"Stop; verleen voorrang aan bestuurders op de kruisende weg",
+}
+local signCards = {
+	{ id = "sign_b6_01", signCode = "B6", correct = 3 },
+	{ id = "sign_b1_01", signCode = "B1", correct = 1 },
+	{ id = "sign_b7_01", signCode = "B7", correct = 4 },
+	{ id = "sign_b2_01", signCode = "B2", correct = 2 },
+}
 local function trace(player, event, details)
 	if not DEBUG_LOGS then return end
 	local s = sessions[player]
-	print(string.format("[AM Theory][Server][%s:%d][phase=%s][session=%s][question=%s] %s %s",
+	print(string.format("[AM Theory][Server][%s:%d][phase=%s][session=%s][question=%s][topic=%s] %s %s",
 		player.Name, player.UserId, s and s.phase or "none", s and s.token or 0,
-		s and s.definition and s.definition.id or "none", event, details or ""))
+		s and s.definition and s.definition.id or "none", s and (s.activeTopic or s.bookTopic) or "none", event, details or ""))
 end
 local function part(parent, name, size, position, color)
 	local p = Instance.new("Part")
@@ -74,14 +86,22 @@ spawn.Name, spawn.Size, spawn.Position = "LobbySpawn", Vector3.new(8, 1, 8), Vec
 spawn.Anchored, spawn.Neutral, spawn.Duration = true, true, 0
 spawn.Parent = world
 local pads = {}
-for _, definition in ipairs({
-	{ "Theory", -7, Color3.fromRGB(45, 155, 220), "Voorrang | THEORIE\nBlijf 5 seconden staan" },
-	{ "Training", 7, Color3.fromRGB(240, 145, 45), "Voorrang | TRAINING\nRond eerst het boek af" },
-}) do
-	local p = part(world, definition[1] .. "Pad", Vector3.new(0.4, 10, 10), Vector3.new(definition[2], 0.8, 0), definition[3])
-	p.Shape, p.Orientation = Enum.PartType.Cylinder, Vector3.new(0, 0, 90)
-	label(p, definition[4])
-	pads[definition[1]] = p
+local stations = Instance.new("Folder")
+stations.Name, stations.Parent = "TopicStations", world
+for index, topicId in ipairs(Catalog.order) do
+	local topic = Catalog.topics[topicId]
+	local station = Instance.new("Folder")
+	station.Name, station.Parent = topicId, stations
+	for _, padKind in ipairs({ "Theory", "Training" }) do
+		local x = padKind == "Theory" and -7 or 7
+		local color = padKind == "Theory" and Color3.fromRGB(45, 155, 220) or Color3.fromRGB(240, 145, 45)
+		if index == 2 then color = padKind == "Theory" and Color3.fromRGB(155, 100, 220) or Color3.fromRGB(55, 180, 135) end
+		local p = part(station, padKind .. "Pad", Vector3.new(0.4, 10, 10), Vector3.new(x, 0.8, -(index - 1) * 16), color)
+		p.Shape, p.Orientation = Enum.PartType.Cylinder, Vector3.new(0, 0, 90)
+		local hint = padKind == "Theory" and "THEORIE | blijf 5 seconden staan" or "TRAINING | rond eerst dit boek af"
+		label(p, topic.titleNl .. "\n" .. hint)
+		pads[topicId .. "_" .. padKind] = { part = p, kind = padKind, topicId = topicId }
+	end
 end
 local wall = part(world, "LeaderboardWall", Vector3.new(30, 9, 1), Vector3.new(0, 5, -26), Color3.fromRGB(28, 38, 58))
 local wallGui = Instance.new("SurfaceGui")
@@ -109,18 +129,32 @@ local function send(player, kind, data)
 		elseif kind == "Outcome" then details = "branch=" .. data.branch
 		elseif kind == "Result" then
 			details = string.format("knowledge=%s outcome=%s reason=%s", tostring(data.knowledge), data.outcome, data.reason)
-		elseif kind == "Lobby" then details = "theoryRead=" .. tostring(data.theoryRead)
+		elseif kind == "SignQuestion" then details = "card=" .. data.index .. "/" .. data.total
+		elseif kind == "SignResult" then details = "correct=" .. tostring(data.correct) .. " round=" .. data.correctCount
 		elseif kind == "Notice" then details = data end
 		trace(player, "Send:" .. kind, details)
 	end
 	remote:FireClient(player, kind, data)
 end
 local function sendBook(player, s)
-	local page = Content.pages[s.page]
+	local topic = Catalog.topics[s.bookTopic]
+	local page = topic.pages[s.page]
 	send(player, "Book", {
-		page = s.page, total = #Content.pages, titleNl = page.titleNl, text = page.text,
-		imageKey = page.imageKey, captionNl = page.captionNl, reviewStatus = Content.reviewStatus,
+		topicId = topic.topicId, topicTitleNl = topic.titleNl, sourceName = topic.sourceName,
+		page = s.page, total = #topic.pages, titleNl = page.titleNl, text = page.text,
+		imageKey = page.imageKey, signCode = page.signCode, captionNl = page.captionNl, reviewStatus = topic.reviewStatus,
 	})
+end
+local function progressSnapshot(s)
+	local snapshot = {}
+	for _, topicId in ipairs(Catalog.order) do
+		local progress = s.topics[topicId]
+		snapshot[topicId] = {
+			theoryRead = progress.theoryRead, bestCorrect = progress.bestCorrect, trainingCompleted = progress.trainingCompleted,
+			totalQuestions = #Catalog.topics[topicId].questionIds,
+		}
+	end
+	return { topics = snapshot }
 end
 local function characterParts(player)
 	local c = player.Character
@@ -148,9 +182,10 @@ local function lobby(player, s)
 	clearDwell(player, s)
 	clearScene(s)
 	s.definition, s.sceneIndex, s.results = nil, nil, nil
+	s.bookTopic, s.activeTopic, s.quizIndex, s.quizResults = nil, nil, nil, nil
 	s.phase = "lobby"
 	moveCharacter(player, Vector3.new(0, 5, 19), false)
-	send(player, "Lobby", { theoryRead = s.theoryRead })
+	send(player, "Lobby", progressSnapshot(s))
 end
 local function result(player, s, outcome, reason)
 	trace(player, "DecisionOutcome", string.format("branch=%s z=%.2f elapsed=%.2f", s.branch, s.block.Position.Z - s.origin.Z, s.outcomeTime))
@@ -159,6 +194,11 @@ local function result(player, s, outcome, reason)
 	local knowledgeCount = 0
 	for _, score in pairs(s.results) do
 		if score.knowledge then knowledgeCount += 1 end
+	end
+	if s.sceneIndex == #scenarios then
+		local progress = s.topics.voorrang
+		progress.trainingCompleted = true
+		progress.bestCorrect = math.max(progress.bestCorrect or 0, knowledgeCount)
 	end
 	send(player, "Result", {
 		knowledge = s.knowledge, outcome = outcome, reason = reason, explanationNl = s.definition.explanationNl,
@@ -211,6 +251,7 @@ end
 local function beginScene(player, s, index)
 	clearDwell(player, s)
 	clearScene(s)
+	s.activeTopic = "voorrang"
 	s.sceneIndex = index or 1
 	s.definition = scenarios[s.sceneIndex]
 	s.results = s.results or {}
@@ -243,10 +284,24 @@ local function beginScene(player, s, index)
 	moveCharacter(player, o + Vector3.new(18, 5, 20), true)
 	send(player, "Cinematic", { origin = o, vehicle = s.block, sceneName = s.scene.Name, token = s.token, titleNl = s.definition.titleNl, index = s.sceneIndex, total = #scenarios })
 end
+local function beginSignCard(player, s, index)
+	clearDwell(player, s)
+	clearScene(s)
+	s.activeTopic, s.quizIndex, s.definition = "verkeerstekens", index or 1, signCards[index or 1]
+	s.quizResults = s.quizResults or {}
+	s.phase, s.token = "sign_question", s.token + 1
+	local root = characterParts(player)
+	if root then root.Anchored = true end
+	send(player, "SignQuestion", {
+		topicId = s.activeTopic, token = s.token, signCode = s.definition.signCode,
+		index = s.quizIndex, total = #signCards, options = signOptions,
+	})
+end
 
 local function setupPlayer(player)
 	if sessions[player] then return end
-	local s = { phase = "menu", started = false, theoryRead = false, token = 0, lastRemote = 0, dwell = 0 }
+	local s = { phase = "menu", started = false, topics = {}, token = 0, lastRemote = 0, dwell = 0 }
+	for _, topicId in ipairs(Catalog.order) do s.topics[topicId] = { theoryRead = false, trainingCompleted = false } end
 	sessions[player] = s
 	trace(player, "Join")
 	player.RespawnLocation = spawn
@@ -254,6 +309,7 @@ local function setupPlayer(player)
 		clearDwell(player, s)
 		clearScene(s)
 		s.definition, s.sceneIndex, s.results = nil, nil, nil
+		s.bookTopic, s.activeTopic, s.quizIndex, s.quizResults = nil, nil, nil, nil
 		s.phase = s.started and "lobby" or "menu"
 		local root = character:WaitForChild("HumanoidRootPart", 10)
 		local humanoid = character:WaitForChild("Humanoid", 10)
@@ -266,7 +322,7 @@ local function setupPlayer(player)
 			s.phase = "dead"
 			send(player, "Reset")
 		end)
-		send(player, s.started and "Lobby" or "Menu", { theoryRead = s.theoryRead })
+		send(player, s.started and "Lobby" or "Menu", progressSnapshot(s))
 	end
 	player.CharacterAdded:Connect(spawned)
 	if player.Character then task.spawn(spawned, player.Character) end
@@ -295,7 +351,7 @@ remote.OnServerEvent:Connect(function(player, command, value, token)
 	end
 	if command == "Sync" then
 		if s.phase == "menu" then send(player, "Menu")
-		elseif s.phase == "lobby" then send(player, "Lobby", { theoryRead = s.theoryRead }) end
+		elseif s.phase == "lobby" then send(player, "Lobby", progressSnapshot(s)) end
 	elseif command == "Play" and s.phase == "menu" then
 		s.started = true
 		lobby(player, s)
@@ -306,11 +362,30 @@ remote.OnServerEvent:Connect(function(player, command, value, token)
 	elseif command == "BookClose" and s.phase == "book" then
 		lobby(player, s)
 	elseif command == "Page" and s.phase == "book" and (value == 1 or value == -1) then
-		s.page = math.clamp(s.page + value, 1, #Content.pages)
+		s.page = math.clamp(s.page + value, 1, #Catalog.topics[s.bookTopic].pages)
 		sendBook(player, s)
-	elseif command == "Finish" and s.phase == "book" and s.page == #Content.pages then
-		s.theoryRead = true
+	elseif command == "Finish" and s.phase == "book" and s.page == #Catalog.topics[s.bookTopic].pages then
+		s.topics[s.bookTopic].theoryRead = true
 		lobby(player, s)
+	elseif command == "SignAnswer" and s.phase == "sign_question" and token == s.token then
+		if type(value) ~= "number" or value % 1 ~= 0 or value < 1 or value > #signOptions then return end
+		local correct = value == s.definition.correct
+		s.quizResults[s.quizIndex], s.phase = correct, "sign_result"
+		local correctCount = 0
+		for _, answer in pairs(s.quizResults) do if answer then correctCount += 1 end end
+		if s.quizIndex == #signCards then
+			local progress = s.topics.verkeerstekens
+			progress.trainingCompleted = true
+			progress.bestCorrect = math.max(progress.bestCorrect or 0, correctCount)
+		end
+		send(player, "SignResult", {
+			correct = correct, labelNl = signOptions[s.definition.correct], signCode = s.definition.signCode,
+			index = s.quizIndex, total = #signCards, correctCount = correctCount,
+		})
+	elseif command == "NextSign" and s.phase == "sign_result" and token == s.token and s.quizIndex < #signCards then
+		beginSignCard(player, s, s.quizIndex + 1)
+	elseif command == "RetrySign" and s.phase == "sign_result" and token == s.token then
+		beginSignCard(player, s, s.quizIndex)
 	elseif command == "Answer" and s.phase == "question" and token == s.token then
 		local options = s.definition.options
 		if type(value) ~= "number" or value % 1 ~= 0 or value < 1 or value > #options then
@@ -324,7 +399,7 @@ remote.OnServerEvent:Connect(function(player, command, value, token)
 	elseif command == "Drive" and s.phase == "approach" and token == s.token and (value == 0 or value == 1) then
 		if s.throttle ~= value then trace(player, "Drive", value == 1 and "accelerate" or "brake") end
 		s.throttle, s.lastDrive = value, now
-	elseif command == "Return" and (s.phase == "result" or s.phase == "approach" or s.phase == "question" or s.phase == "outcome" or s.phase == "cinematic") and token == s.token then
+	elseif command == "Return" and (s.phase == "result" or s.phase == "approach" or s.phase == "question" or s.phase == "outcome" or s.phase == "cinematic" or s.phase == "sign_question" or s.phase == "sign_result") and token == s.token then
 		lobby(player, s)
 	elseif command == "NextScene" and s.phase == "result" and token == s.token and s.sceneIndex < #scenarios then
 		beginScene(player, s, s.sceneIndex + 1)
@@ -349,15 +424,16 @@ RunService.Heartbeat:Connect(function(dt)
 		if not root or not humanoid or humanoid.Health <= 0 then continue end
 		if s.phase == "lobby" and checkZones then
 			local found
-			for name, p in pairs(pads) do
-				local d = root.Position - p.Position
+			for name, pad in pairs(pads) do
+				local d = root.Position - pad.part.Position
 				if Vector2.new(d.X, d.Z).Magnitude <= 5 and d.Y >= 1 and d.Y <= 4.5 then found = name end
 			end
-			if found == "Training" and not s.theoryRead then
+			local selected = found and pads[found]
+			if selected and selected.kind == "Training" and not s.topics[selected.topicId].theoryRead then
 				clearDwell(player, s)
 				if not s.notice or os.clock() - s.notice > 3 then
 					s.notice = os.clock()
-					send(player, "Notice", "Lees eerst alle boekpagina's en rond de theorie af.")
+					send(player, "Notice", "Rond eerst het boek van " .. Catalog.topics[selected.topicId].titleNl .. " af.")
 				end
 			elseif found then
 				if s.pad ~= found or (s.previous and (root.Position - s.previous).Magnitude > 12) then
@@ -366,14 +442,15 @@ RunService.Heartbeat:Connect(function(dt)
 				end
 				s.previous = root.Position
 				s.dwell = os.clock() - s.since
-				send(player, "Countdown", { active = true, seconds = math.max(0, math.ceil(DWELL - s.dwell)) })
+				send(player, "Countdown", { active = true, seconds = math.max(0, math.ceil(DWELL - s.dwell)), topicTitleNl = Catalog.topics[selected.topicId].titleNl })
 				if s.dwell >= DWELL then
 					trace(player, "DwellComplete", "pad=" .. found)
-					if found == "Theory" then
+					if selected.kind == "Theory" then
 						clearDwell(player, s)
-						s.phase, s.page = "book", 1
+						s.phase, s.page, s.bookTopic = "book", 1, selected.topicId
 						root.Anchored = true
 						sendBook(player, s)
+					elseif selected.topicId == "verkeerstekens" then beginSignCard(player, s)
 					else beginScene(player, s) end
 				end
 			else clearDwell(player, s) end

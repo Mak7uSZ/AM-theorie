@@ -4,7 +4,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
 local player = Players.LocalPlayer
-local Content = require(ReplicatedStorage:WaitForChild("TopicContent"))
+local Catalog = require(ReplicatedStorage:WaitForChild("TopicContent"))
 local remote = ReplicatedStorage:WaitForChild("PrototypeEvent")
 local gui = Instance.new("ScreenGui")
 gui.Name, gui.ResetOnSpawn, gui.IgnoreGuiInset = "AMPrototypeGui", false, false
@@ -18,7 +18,7 @@ local menuBackdrop = Instance.new("Frame")
 menuBackdrop.Size, menuBackdrop.BackgroundColor3 = UDim2.fromScale(1, 1), Color3.fromRGB(14, 22, 35)
 menuBackdrop.BorderSizePixel, menuBackdrop.Parent = 0, backdropGui
 local mode, token, origin = "loading", 0, nil
-local theoryRead, throttle, largeText = false, 0, false
+local topicProgress, throttle, largeText = {}, 0, false
 local shotStarted = 0
 local vehicle, sceneName, viewPosition, savedView
 local firstPerson, looking, lookLeft, lookRight = false, false, false, false
@@ -55,6 +55,65 @@ local function button(parent, caption, x, y, width, callback)
 	corner.Parent = b
 	if callback then b.Activated:Connect(callback) end
 	return b
+end
+local function drawRoadSign(parent, code)
+	-- Original schematic drawings. No external image uploads are required.
+	local root = Instance.new("Frame")
+	root.Name, root.BackgroundTransparency = "RoadSignSketch", 1
+	root.AnchorPoint, root.Position, root.Size = Vector2.new(0.5, 0.5), UDim2.fromScale(0.5, 0.5), UDim2.fromOffset(180, 180)
+	root.Parent = parent
+	local scale = Instance.new("UIScale")
+	scale.Parent = root
+	local function resize()
+		scale.Scale = math.clamp(math.min(parent.AbsoluteSize.X, parent.AbsoluteSize.Y) / 180 * 0.9, 0.1, 1.2)
+	end
+	parent:GetPropertyChangedSignal("AbsoluteSize"):Connect(resize)
+	resize()
+	local red, white, black = Color3.fromRGB(205, 35, 40), Color3.new(1, 1, 1), Color3.fromRGB(25, 25, 25)
+	local function rectangle(x, y, w, h, color, rotation)
+		local shape = Instance.new("Frame")
+		shape.Position, shape.Size = UDim2.fromOffset(x, y), UDim2.fromOffset(w, h)
+		shape.BackgroundColor3, shape.BackgroundTransparency, shape.BorderSizePixel = color, 0, 0
+		shape.Rotation, shape.Parent = rotation or 0, root
+	end
+	if code == "B1" or code == "B2" then
+		rectangle(34, 34, 112, 112, black, 45)
+		rectangle(36, 36, 108, 108, white, 45)
+		rectangle(47, 47, 86, 86, Color3.fromRGB(250, 205, 35), 45)
+		if code == "B2" then
+			for _, offset in ipairs({ -20, 0, 20 }) do
+				for y = 12, 166, 2 do
+					local halfWidth = 78 - math.abs(y - 90)
+					local centre = 90 + offset - (y - 90)
+					local left, right = math.max(90 - halfWidth, centre - 4), math.min(90 + halfWidth, centre + 4)
+					if right > left then rectangle(left, y, right - left, 2, black) end
+				end
+			end
+		end
+	elseif code == "B6" then
+		for row = 0, 67 do
+			local width = 156 * (1 - row / 68)
+			rectangle(90 - width / 2, 22 + row * 2, width, 2, red)
+		end
+		for row = 0, 53 do
+			local width = 124 * (1 - row / 54)
+			rectangle(90 - width / 2, 36 + row * 2, width, 2, white)
+		end
+	elseif code == "B7" then
+		local function octagon(origin, size, color)
+			local cut = size * (1 - 1 / math.sqrt(2))
+			for y = 0, size - 2, 2 do
+				local inset = math.max(0, cut - y, y - (size - cut))
+				rectangle(origin + inset, origin + y, size - inset * 2, 2, color)
+			end
+		end
+		octagon(10, 160, white)
+		octagon(15, 150, red)
+		local stop = text(root, "STOP", UDim2.fromScale(0.12, 0.33), UDim2.fromScale(0.76, 0.34))
+		stop.Font = Enum.Font.GothamBold
+		stop:FindFirstChildOfClass("UITextSizeConstraint").MaxTextSize = 40
+	end
+	return root
 end
 local panel = Instance.new("Frame")
 panel.AnchorPoint, panel.Position = Vector2.new(0.5, 0.5), UDim2.fromScale(0.5, 0.5)
@@ -156,14 +215,21 @@ local function showLobby()
 	restoreCamera()
 	panel.Visible, toolbar.Visible = false, true
 	status.Visible = true
-	status.Text = theoryRead and "Voorrang: klaar voor training | voortgang alleen in deze sessie" or "Loop naar de blauwe theoriecirkel | voortgang alleen in deze sessie"
+	status.Text = "Kies een onderwerp: Voorrang of Verkeerstekens. Elke training heeft een eigen boek."
 end
 local showMenu
 local function overlay(kind, fromMenu)
 	if not fromMenu then send("Overlay", true) end
 	mode = "overlay"
 	if kind == "progress" then
-		heading("Voortgang", "Alleen deze serversessie.\n\nVoorrang: " .. (theoryRead and "THEORIE GELEZEN — 3 oefenscènes beschikbaar" or "THEORIE NOG NIET GELEZEN") .. "\n\nDeze demo geeft nog geen geslaagd onderwerp of examencijfer.")
+		local lines = { "Alleen deze serversessie. Geen officiële examenscore." }
+		for _, topicId in ipairs(Catalog.order) do
+			local progress = topicProgress[topicId] or {}
+			local state = progress.theoryRead and "boek afgerond — training beschikbaar" or "lees eerst dit boek"
+			if progress.trainingCompleted then state ..= " | beste oefenronde: " .. progress.bestCorrect .. "/" .. (progress.totalQuestions or #Catalog.topics[topicId].questionIds) end
+			table.insert(lines, Catalog.topics[topicId].titleNl .. ": " .. state)
+		end
+		heading("Voortgang", table.concat(lines, "\n\n"))
 	else
 		heading("Instellingen", "Leesbaarheid van de boektekst.\n\nInstellingen worden niet opgeslagen.")
 		local toggle
@@ -181,7 +247,7 @@ showMenu = function()
 	mode = "menu"
 	restoreCamera()
 	status.Text = "AM Theory Simulator | technisch prototype"
-	heading("AM Theory Simulator", "Voorrang — eerste leerinhoud\n\nLees het geïllustreerde boek en probeer 3 oefenscènes: fietser van rechts, onverharde weg en tram.\n\nConcept: actualiteitscontrole open. Geen officiële CBR-les.")
+	heading("AM Theory Simulator", "Twee onderwerpen: Voorrang en Verkeerstekens\n\nVoorrang: 3 oefenscènes van dichtbij.\nVerkeerstekens: B1, B2, B6 en B7 herkennen.\n\nConcept: eigen uitleg bij de borden volgt. Geen officiële CBR-les.")
 	menuBackdrop.Visible, panel.BackgroundTransparency = true, 1
 	button(panel, "Spelen", 0.3, 0.68, 0.4, function() send("Play") end)
 	button(panel, "Instellingen", 0.08, 0.84, 0.38, function() overlay("settings", true) end)
@@ -208,23 +274,29 @@ remote.OnClientEvent:Connect(function(kind, data)
 		print(string.format("[AM Theory][Client][mode=%s][session=%d] Receive:%s", mode, token, kind))
 	end
 	if kind == "Menu" then showMenu()
-	elseif kind == "Lobby" then theoryRead = data.theoryRead; showLobby()
+	elseif kind == "Lobby" then topicProgress = data.topics or {}; showLobby()
 	elseif kind == "Countdown" then
-		status.Text = data.active and ("Blijf in de cirkel: " .. data.seconds) or "Timer gereset — blijf 5 seconden in een cirkel."
+		status.Text = data.active and ((data.topicTitleNl or "Onderwerp") .. " — blijf in de cirkel: " .. data.seconds) or "Timer gereset — blijf 5 seconden in een cirkel."
 	elseif kind == "Notice" then status.Text = data
 	elseif kind == "Book" then
 		mode = "book"
+		local topic = Catalog.topics[data.topicId or Catalog.defaultTopicId]
 		local body = heading(data.titleNl .. " | " .. data.page .. "/" .. data.total, data.text)
-		local source = text(panel, "CONCEPT • actualiteitscontrole open • Bron: RVV 1990", UDim2.fromScale(0.04, 0.15), UDim2.fromScale(0.92, 0.04))
+		local source = text(panel, "CONCEPT • " .. (data.reviewStatus == "draft" and "eigen uitleg volgt" or "actualiteitscontrole open") .. " • Bron: " .. (data.sourceName or topic.sourceName), UDim2.fromScale(0.04, 0.15), UDim2.fromScale(0.92, 0.04))
 		source:FindFirstChildOfClass("UITextSizeConstraint").MaxTextSize = 12
 		body.Position, body.Size = UDim2.fromScale(0.04, 0.23), UDim2.fromScale(0.45, 0.39)
 		body.TextXAlignment, body.TextYAlignment = Enum.TextXAlignment.Left, Enum.TextYAlignment.Top
 		-- Accept either a symbolic key or a direct ID pasted into a page.
 		local imageReference = tostring(data.imageKey or "")
-		local imageId = tostring((Content.images or {})[imageReference] or imageReference)
+		local imageId = tostring((topic.images or {})[imageReference] or imageReference)
 		imageId = imageId:match("^%s*(.-)%s*$")
 		if imageId:match("^%d+$") then imageId = "rbxassetid://" .. imageId end
-		if imageId:match("^rbxassetid://%d+$") then
+		if data.signCode then
+			local picture = Instance.new("Frame")
+			picture.BackgroundTransparency, picture.Parent = 1, panel
+			picture.Position, picture.Size = UDim2.fromScale(0.53, 0.23), UDim2.fromScale(0.43, 0.39)
+			drawRoadSign(picture, data.signCode)
+		elseif imageId:match("^rbxassetid://%d+$") then
 			local picture = Instance.new("ImageLabel")
 			picture.Name, picture.BackgroundTransparency = "TheoryIllustration", 1
 			picture.Position, picture.Size = UDim2.fromScale(0.53, 0.23), UDim2.fromScale(0.43, 0.39)
@@ -248,6 +320,28 @@ remote.OnClientEvent:Connect(function(kind, data)
 			button(panel, "Theorie afronden", 0.4, 0.75, 0.55, function() send("Finish") end)
 		end
 		button(panel, "Sluiten", 0.3, 0.88, 0.4, function() send("BookClose") end)
+	elseif kind == "SignQuestion" then
+		restoreCamera()
+		mode, token = "sign_question", data.token
+		local prompt = heading("Verkeerstekens | " .. data.index .. "/" .. data.total, "Welke omschrijving hoort bij dit bord? | CONCEPT")
+		prompt.Position, prompt.Size = UDim2.fromScale(0.04, 0.16), UDim2.fromScale(0.92, 0.10)
+		local picture = Instance.new("Frame")
+		picture.Position, picture.Size = UDim2.fromScale(0.3, 0.28), UDim2.fromScale(0.4, 0.33)
+		picture.BackgroundTransparency, picture.Parent = 1, panel
+		drawRoadSign(picture, data.signCode)
+		for index, option in ipairs(data.options) do
+			local x, y = (index % 2 == 1) and 0.04 or 0.52, index <= 2 and 0.66 or 0.79
+			button(panel, option, x, y, 0.44, function() send("SignAnswer", index) end)
+		end
+		local close = button(panel, "Naar lobby", 0.35, 0.92, 0.3, function() send("Return") end)
+		close.Size = UDim2.fromScale(0.3, 0.06)
+	elseif kind == "SignResult" then
+		mode = "sign_result"
+		heading(data.correct and "Goed herkend!" or "Nog even oefenen", "Omschrijving bij " .. data.signCode .. ":\n" .. data.labelNl ..
+			"\n\nJe oefent nu herkenning. De eigen theorie-uitleg volgt.\n\nDeze oefenronde: " .. data.correctCount .. "/" .. data.index .. " goed. Herkansen vervangt je antwoord.")
+		button(panel, "Opnieuw", 0.05, 0.72, 0.40, function() send("RetrySign") end)
+		if data.index < data.total then button(panel, "Volgend bord", 0.55, 0.72, 0.40, function() send("NextSign") end) end
+		button(panel, "Terug naar lobby", 0.2, 0.86, 0.6, function() send("Return") end)
 	elseif kind == "Cinematic" then
 		local camera = workspace.CurrentCamera
 		if not savedView then

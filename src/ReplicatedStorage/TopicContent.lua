@@ -1,6 +1,6 @@
 -- ModuleScript: ReplicatedStorage > TopicContent
 -- Public content only. Never store answer keys in ReplicatedStorage.
-return {
+local voorrang = {
 	topicId = "voorrang",
 	titleNl = "Voorrang",
 	sourceName = "RVV 1990",
@@ -54,4 +54,46 @@ return {
 			captionNl = "Deze afbeelding toont een kruispunt zonder voorrangsregeling.",
 		},
 	},
+}
+
+local verkeerstekens = {
+	topicId = "verkeerstekens",
+	titleNl = "Verkeerstekens",
+	sourceName = "RVV 1990 — bijlage 1",
+	sourceUrl = "https://wetten.overheid.nl/BWBR0004825/#Bijlage1",
+	article = "Bijlage 1, B1/B2/B6/B7",
+	reviewStatus = "draft",
+	images = {},
+	questionIds = { "sign_b6_01", "sign_b1_01", "sign_b7_01", "sign_b2_01" },
+	sceneIds = {},
+	-- Short source labels, not an owner-authored explanation of the rules.
+	-- Full explanations are intentionally left for the owner to write.
+	pages = {
+		{
+			titleNl = "B1 — bronlabel",
+			text = "Voorrangsweg\n\n[CONCEPT — OWNER TO WRITE]\n\nSchrijf hier in je eigen woorden wat dit bord betekent, wat je als bromfietser doet en een voorbeeld.",
+			signCode = "B1", captionNl = "Schematische tekening. Bronlabel: RVV 1990, bijlage 1.",
+		},
+		{
+			titleNl = "B2 — bronlabel",
+			text = "Einde voorrangsweg\n\n[CONCEPT — OWNER TO WRITE]\n\nSchrijf hier je uitleg. Wat verandert er ten opzichte van B1? Voeg je eigen voorbeeld toe.",
+			signCode = "B2", captionNl = "De drie diagonale strepen onderscheiden dit bord van B1.",
+		},
+		{
+			titleNl = "B6 — bronlabel",
+			text = "Verleen voorrang aan bestuurders op de kruisende weg\n\n[CONCEPT — OWNER TO WRITE]\n\nSchrijf hier je eigen uitleg en beschrijf hoe je een kruispunt met dit bord nadert.",
+			signCode = "B6", captionNl = "Schematische tekening. Bronlabel: RVV 1990, bijlage 1.",
+		},
+		{
+			titleNl = "B7 — bronlabel",
+			text = "Stop; verleen voorrang aan bestuurders op de kruisende weg\n\n[CONCEPT — OWNER TO WRITE]\n\nSchrijf hier je eigen uitleg. Wat is het verschil met B6? Geef een voorbeeld.",
+			signCode = "B7", captionNl = "Het woord STOP maakt deel uit van de tekening van het bord.",
+		},
+	},
+}
+
+return {
+	defaultTopicId = "voorrang",
+	order = { "voorrang", "verkeerstekens" },
+	topics = { voorrang = voorrang, verkeerstekens = verkeerstekens },
 }

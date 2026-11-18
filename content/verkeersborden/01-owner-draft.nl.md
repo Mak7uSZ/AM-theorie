@@ -1,11 +1,11 @@
 # Verkeersborden en verkeerstekens — auteurswerkblad
 
-topicId: verkeersborden
+topicId: verkeerstekens
 reviewStatus: draft
 sourceName: RVV 1990, bijlage 1; artikelen 62–64 en 80
 sourceUrl: https://wetten.overheid.nl/BWBR0004825/#Bijlage1
 
-Dit is een leeg werkblad voor de projecteigenaar, nog geen les in de game. Schrijf de uitleg in je eigen woorden en controleer de officiële bron voordat de tekst reviewed wordt.
+Dit is het auteurswerkblad voor de projecteigenaar. In de game staat inmiddels een draft-boek met korte bronlabels en vier herkenningskaarten; de eigen uitleg hieronder is nog niet geschreven. Schrijf in je eigen woorden en controleer de officiële bron voordat de tekst reviewed wordt.
 
 ## Eerste blok: B1, B2, B6 en B7
 
