@@ -267,7 +267,7 @@ local function beginSignCard(player, s, index)
 	if root then root.Anchored = true end
 	send(player, "SignQuestion", {
 		topicId = s.activeTopic, token = s.token, signCode = s.definition.signCode,
-		index = s.quizIndex, total = #training.questions, options = training.options,
+		index = s.quizIndex, total = #training.questions, options = s.definition.options, promptNl = s.definition.promptNl,
 	})
 end
 
@@ -344,7 +344,7 @@ remote.OnServerEvent:Connect(function(player, command, value, token)
 		s.topics[s.bookTopic].theoryRead = true
 		lobby(player, s)
 	elseif command == "SignAnswer" and s.phase == "sign_question" and token == s.token then
-		if type(value) ~= "number" or value % 1 ~= 0 or value < 1 or value > #training.options then return end
+		if type(value) ~= "number" or value % 1 ~= 0 or value < 1 or value > #s.definition.options then return end
 		local correct = value == s.definition.correct
 		s.quizResults[s.quizIndex], s.phase = correct, "sign_result"
 		local correctCount = 0
@@ -356,7 +356,8 @@ remote.OnServerEvent:Connect(function(player, command, value, token)
 			progress.bestCorrect = math.max(progress.bestCorrect or 0, correctCount)
 		end
 		send(player, "SignResult", {
-			correct = correct, labelNl = training.options[s.definition.correct], signCode = s.definition.signCode,
+			correct = correct, labelNl = s.definition.options[s.definition.correct], signCode = s.definition.signCode,
+			explanationNl = s.definition.explanationNl,
 			index = s.quizIndex, total = total, correctCount = correctCount,
 		})
 	elseif command == "NextSign" and s.phase == "sign_result" and token == s.token and s.quizIndex < #training.questions then

@@ -70,11 +70,13 @@ local function drawRoadSign(parent, code)
 	parent:GetPropertyChangedSignal("AbsoluteSize"):Connect(resize)
 	resize()
 	local red, white, black = Color3.fromRGB(205, 35, 40), Color3.new(1, 1, 1), Color3.fromRGB(25, 25, 25)
+	local blue = Color3.fromRGB(0, 67, 151)
 	local function rectangle(x, y, w, h, color, rotation)
 		local shape = Instance.new("Frame")
 		shape.Position, shape.Size = UDim2.fromOffset(x, y), UDim2.fromOffset(w, h)
 		shape.BackgroundColor3, shape.BackgroundTransparency, shape.BorderSizePixel = color, 0, 0
 		shape.Rotation, shape.Parent = rotation or 0, root
+		return shape
 	end
 	if code == "B1" or code == "B2" then
 		rectangle(34, 34, 112, 112, black, 45)
@@ -112,6 +114,59 @@ local function drawRoadSign(parent, code)
 		local stop = text(root, "STOP", UDim2.fromScale(0.12, 0.33), UDim2.fromScale(0.76, 0.34))
 		stop.Font = Enum.Font.GothamBold
 		stop:FindFirstChildOfClass("UITextSizeConstraint").MaxTextSize = 40
+	elseif code == "G11" or code == "G12a" then
+		local function disk(x, y, radius, color)
+			local shape = rectangle(x - radius, y - radius, 2 * radius, 2 * radius, color)
+			local corner = Instance.new("UICorner")
+			corner.CornerRadius, corner.Parent = UDim.new(0.5, 0), shape
+		end
+		local function drawCycle(y, factor, moped)
+			local left = 90 - 39 * factor
+			local right = 90 + 39 * factor
+			for _, x in ipairs({ left, right }) do
+				disk(x, y, 23 * factor, white)
+				disk(x, y, 18 * factor, blue)
+			end
+			local function line(x1, y1, x2, y2)
+				local dx, dy = x2 - x1, y2 - y1
+				local width = math.sqrt(dx * dx + dy * dy) * factor
+				local thickness = 5 * factor
+				rectangle(left + (x1 + x2) * factor / 2 - width / 2, y + (y1 + y2) * factor / 2 - thickness / 2,
+					width, thickness, white, math.deg(math.atan2(dy, dx)))
+			end
+			line(0, 0, 19, -48)
+			line(18, -48, 28, -48)
+			if moped then
+				line(14, -34, 29, -34)
+				line(29, -34, 25, -18)
+				line(25, -18, 41, 0)
+				line(41, 0, 78, 0)
+				line(57, -31, 91, -31)
+			else
+				line(16, -34, 64, -34)
+				line(16, -34, 43, 0)
+				line(43, 0, 78, 0)
+				line(64, -42, 43, 0)
+				line(64, -34, 78, 0)
+				line(53, -43, 73, -43)
+			end
+		end
+		disk(90, 90, 84, blue)
+		disk(90, 90, 81, white)
+		disk(90, 90, 77, blue)
+		if code == "G12a" then
+			drawCycle(72, 0.73, true)
+			drawCycle(132, 0.73, false)
+		else
+			drawCycle(108, 1, false)
+		end
+	elseif code == "G13" then
+		rectangle(6, 62, 168, 56, blue)
+		rectangle(9, 65, 162, 50, white)
+		rectangle(12, 68, 156, 44, blue)
+		local legend = text(root, "fietspad", UDim2.fromOffset(12, 68), UDim2.fromOffset(156, 44))
+		legend.Font = Enum.Font.GothamBold
+		legend:FindFirstChildOfClass("UITextSizeConstraint").MaxTextSize = 36
 	end
 	return root
 end
@@ -188,6 +243,7 @@ local function heading(title, body)
 	local titleLabel = text(panel, title, UDim2.fromScale(0.04, 0.03), UDim2.fromScale(0.92, 0.11))
 	titleLabel.Name = "PanelTitle"
 	local content = text(panel, body, UDim2.fromScale(0.06, 0.19), UDim2.fromScale(0.88, 0.48))
+	content.Name = "PanelBody"
 	content:FindFirstChildOfClass("UITextSizeConstraint").MaxTextSize = largeText and 22 or 17
 	return content
 end
@@ -326,10 +382,11 @@ remote.OnClientEvent:Connect(function(kind, data)
 		restoreCamera()
 		mode, token = "sign_question", data.token
 		local topic = Catalog.topics[data.topicId]
-		local prompt = heading((topic and topic.titleNl or "Oefening") .. " | " .. data.index .. "/" .. data.total, "Welke omschrijving hoort bij dit bord?")
-		prompt.Position, prompt.Size = UDim2.fromScale(0.04, 0.16), UDim2.fromScale(0.92, 0.10)
+		local prompt = heading((topic and topic.titleNl or "Oefening") .. " | " .. data.index .. "/" .. data.total,
+			data.promptNl or "Welke omschrijving hoort bij dit bord?")
+		prompt.Position, prompt.Size = UDim2.fromScale(0.04, 0.16), UDim2.fromScale(0.92, 0.16)
 		local picture = Instance.new("Frame")
-		picture.Position, picture.Size = UDim2.fromScale(0.3, 0.28), UDim2.fromScale(0.4, 0.33)
+		picture.Position, picture.Size = UDim2.fromScale(0.3, 0.34), UDim2.fromScale(0.4, 0.28)
 		picture.BackgroundTransparency, picture.Parent = 1, panel
 		drawRoadSign(picture, data.signCode)
 		for index, option in ipairs(data.options) do
@@ -340,7 +397,8 @@ remote.OnClientEvent:Connect(function(kind, data)
 		close.Size = UDim2.fromScale(0.3, 0.06)
 	elseif kind == "SignResult" then
 		mode = "sign_result"
-		heading(data.correct and "Goed herkend!" or "Nog even oefenen", "Omschrijving bij " .. data.signCode .. ":\n" .. data.labelNl ..
+		local feedback = data.explanationNl and (data.labelNl .. "\n\n" .. data.explanationNl) or ("Omschrijving bij " .. data.signCode .. ":\n" .. data.labelNl)
+		heading(data.correct and "Goed!" or "Nog even oefenen", feedback ..
 			"\n\nDeze oefenronde: " .. data.correctCount .. "/" .. data.index .. " goed. Herkansen vervangt je antwoord.")
 		button(panel, "Opnieuw", 0.05, 0.72, 0.40, function() send("RetrySign") end)
 		if data.index < data.total then button(panel, "Volgend bord", 0.55, 0.72, 0.40, function() send("NextSign") end) end

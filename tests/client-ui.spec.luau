@@ -170,6 +170,15 @@ end
 expect(clicked == 4, "Sign question must have four options")
 emit("SignResult", { correct = true, signCode = "B6", labelNl = "Test label", index = 1, total = 4, correctCount = 1 })
 expect(mode == "sign_result" and panel.Visible and not ridingHud.Visible, "Recognition feedback must keep controls clean")
+local pathPrompt = "Je rijdt op een snorfiets. Waar rijd je?"
+emit("SignQuestion", { topicId = "verkeerstekens", token = 100, index = 7, total = 7, signCode = "G13", promptNl = pathPrompt, options = { "Op de rijbaan.", "Op het pad." } })
+local prompt = panel:FindFirstChild("PanelBody")
+local sketch = descendant(panel, "RoadSignSketch")
+expect(prompt.Text == pathPrompt and sketch, "A route card must show its own question and drawing")
+expect(prompt.Position.Y.Scale + prompt.Size.Y.Scale < sketch.Parent.Position.Y.Scale, "The route prompt must fit above the sign")
+local pathExplanation = "Voorbeeld van uitleg na het antwoord."
+emit("SignResult", { correct = false, signCode = "G13", labelNl = "Op de rijbaan.", explanationNl = pathExplanation, index = 7, total = 7, correctCount = 6 })
+expect(panel:FindFirstChild("PanelBody").Text:find(pathExplanation, 1, true), "A route result includes its explanation")
 emit("Lobby", { topics = { voorrang = { theoryRead = false }, verkeerstekens = { theoryRead = true, trainingCompleted = true, bestCorrect = 4 } } })
 expect(topicProgress.verkeerstekens.bestCorrect == 4 and not topicProgress.voorrang.theoryRead, "Client progress must preserve independent topics")
 overlay("progress", false)

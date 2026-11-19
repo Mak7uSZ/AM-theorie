@@ -106,7 +106,7 @@
 | 02.02 | Voorrangsborden: B1, B2, B6, B7 en overige B-borden | Вторая станция с авторским текстом, схемами и четырьмя карточками | Страницы B1/B2/B6/B7 сверены с RVV, впереди проверка в Studio |
 | 02.03 | Snelheidsborden en zones | Карточки: знак, категория транспорта, контекст | не начато |
 | 02.04 | Geslotenverklaringen en toegestane richtingen | Маршрут с выбором разрешённого направления | не начато |
-| 02.05 | Fietspaden en fiets/bromfietspaden | Выбор пути по знаку и категории транспорта | не начато |
+| 02.05 | Fietspaden en fiets/bromfietspaden | Выбор пути по знаку и категории транспорта | G11, G12a и G13 в книге и тренировке, впереди проверка в Studio |
 | 02.06 | Parkeer-, stop- en overige gebods- en verbodsborden | Ситуационные карточки с подзнаками | не начато |
 | 02.07 | Waarschuwings- en informatieborden | Найти опасность и объяснить действие | не начато |
 | 02.08 | Verkeerslichten en bijzondere lichtsignalen | Одна сцена с меняющимися сигналами | не начато |

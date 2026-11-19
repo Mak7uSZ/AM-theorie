@@ -297,6 +297,7 @@ expect(latest(p3, "Book").topicId == "verkeerstekens" and latest(p3, "Book").sig
 request(p3, "Finish")
 expect(not s3.topics.verkeerstekens.theoryRead, "Cannot finish signs book before last page")
 for _ = 2, #Catalog.topics.verkeerstekens.pages do request(p3, "Page", 1) end
+expect(latest(p3, "Book").signCode == "G13" and latest(p3, "Book").total == 7, "Signs book ends after three cycle-path pages")
 request(p3, "Finish")
 expect(s3.topics.verkeerstekens.theoryRead and not s3.topics.voorrang.theoryRead, "Completing signs must not complete priority theory")
 move(p3, 7, 0); frames(5.3)
@@ -306,32 +307,34 @@ expect(s3.phase == "sign_question" and s3.quizIndex == 1, "Second training circl
 local previousToken
 for index, card in ipairs(signCards) do
 	local payload = latest(p3, "SignQuestion")
-	expect(payload.index == index and payload.signCode == card.signCode and payload.correct == nil, "Recognition payload must contain visual but no key")
+	expect(payload.index == index and payload.signCode == card.signCode and payload.correct == nil and payload.explanationNl == nil, "Sign payload must contain visual but no key or explanation")
+	expect(payload.promptNl == card.promptNl and #payload.options == #card.options, "Each sign question sends its own choices and prompt")
 	expect(Catalog.topics.verkeerstekens.questionIds[index] == card.id, "Public sign question IDs must match server order")
 	request(p3, "NextSign")
 	expect(s3.phase == "sign_question" and s3.quizIndex == index, "Cannot skip unanswered sign card")
-	request(p3, "SignAnswer", 5)
+	request(p3, "SignAnswer", #payload.options + 1)
 	expect(s3.phase == "sign_question", "Out-of-range sign choice must be rejected")
 	if previousToken then
 		request(p3, "SignAnswer", card.correct, previousToken)
 		expect(s3.phase == "sign_question", "Old sign token cannot answer next card")
 	end
-	if index == 1 then
-		request(p3, "SignAnswer", 1)
+	if index == 1 or card.signCode == "G13" then
+		request(p3, "SignAnswer", card.correct == 1 and 2 or 1)
 		expect(not latest(p3, "SignResult").correct, "Incorrect sign option must be graded false")
 		request(p3, "RetrySign")
-		expect(s3.quizIndex == 1 and s3.phase == "sign_question", "Sign retry must retain card and issue fresh session")
+		expect(s3.quizIndex == index and s3.phase == "sign_question" and s3.token ~= payload.token, "Sign retry must retain card and issue fresh session")
 	end
 	request(p3, "SignAnswer", card.correct)
 	expect(s3.phase == "sign_result" and latest(p3, "SignResult").correctCount == index, "Correct choices must accumulate once per card")
+	expect(latest(p3, "SignResult").labelNl == card.options[card.correct] and latest(p3, "SignResult").explanationNl == card.explanationNl, "Sign feedback uses the answer and explanation from the current card")
 	request(p3, "SignAnswer", 1)
 	expect(latest(p3, "SignResult").correctCount == index, "Repeated answer must not inflate score")
 	previousToken = s3.token
 	if index < #signCards then request(p3, "NextSign") end
 end
-expect(s3.topics.verkeerstekens.trainingCompleted and s3.topics.verkeerstekens.bestCorrect == 4, "Completed sign round must record session best")
+expect(s3.topics.verkeerstekens.trainingCompleted and s3.topics.verkeerstekens.bestCorrect == 7, "Completed sign round must record session best across both sets of signs")
 request(p3, "NextSign")
-expect(s3.phase == "sign_result" and s3.quizIndex == 4, "Final card must not advance out of range")
+expect(s3.phase == "sign_result" and s3.quizIndex == 7, "Final card must not advance out of range")
 request(p3, "Return")
 expect(latest(p3, "Lobby").topics.verkeerstekens.theoryRead and not latest(p3, "Lobby").topics.voorrang.theoryRead, "Progress packet must keep subjects separate")
 move(p, 7, -16); frames(5.3)

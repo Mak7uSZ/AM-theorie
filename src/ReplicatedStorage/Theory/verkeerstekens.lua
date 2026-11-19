@@ -2,14 +2,14 @@
 return {
 	topicId = "verkeerstekens",
 	titleNl = "Verkeerstekens",
-	sourceName = "RVV 1990 — bijlage 1",
+	sourceName = "RVV 1990 — bijlage 1 en verkeersregels",
 	sourceUrl = "https://wetten.overheid.nl/BWBR0004825/#Bijlage1",
-	article = "Bijlage 1, B1/B2/B6/B7 en artikelen 15, 18, 62–64, 79, 84",
+	article = "Bijlage 1 (B1, B2, B6, B7, G11, G12a, G13) en artikelen 2b, 5, 6, 15, 18, 20, 21, 62–64, 79, 84",
 	reviewStatus = "reviewed",
 	images = {},
-	questionIds = { "sign_b6_01", "sign_b1_01", "sign_b7_01", "sign_b2_01" },
+	questionIds = { "sign_b6_01", "sign_b1_01", "sign_b7_01", "sign_b2_01", "sign_g11_01", "sign_g12a_01", "sign_g13_01" },
 	sceneIds = {},
-	-- The owner's first four sign explanations, edited and checked against the RVV.
+	-- The owner's sign explanations, edited and checked against the RVV.
 	pages = {
 		{
 			titleNl = "B1 — Voorrangsweg",
@@ -30,6 +30,21 @@ return {
 			titleNl = "B7 — Stop en verleen voorrang",
 			text = "Bij B7 kom je eerst volledig tot stilstand. Is er een stopstreep voor jou, dan stop je ervoor. Daarna verleen je voorrang aan bestuurders op de kruisende weg.\n\nVoorbeeld: je nadert op je bromfiets een leeg kruispunt. Bij B6 mag je doorrijden als het veilig is. Bij B7 moet je ook op een leeg kruispunt eerst stoppen.",
 			signCode = "B7", captionNl = "Het woord STOP maakt deel uit van de tekening van het bord.",
+		},
+		{
+			titleNl = "G11 — Verplicht fietspad",
+			text = "Met een bromfiets met geel kenteken mag je niet op dit fietspad. Als er geen fiets/bromfietspad is, gebruik je de rijbaan.\n\nMet een snorfiets gelden meestal de regels voor fietsers. Je gebruikt dit verplichte fietspad, behalve als een onderbord aangeeft dat snorfietsers naar de rijbaan moeten.",
+			signCode = "G11", captionNl = "RVV 1990, artikelen 2b, 5 en 6.",
+		},
+		{
+			titleNl = "G12a — Fiets/bromfietspad",
+			text = "Met je bromfiets gebruik je het fiets/bromfietspad als dat er is. Op dit pad is je maximumsnelheid 30 km/uur binnen de bebouwde kom en 40 km/uur buiten de bebouwde kom. Houd je aan een lagere limiet als die geldt.",
+			signCode = "G12a", captionNl = "RVV 1990, artikelen 6, 20 en 21.",
+		},
+		{
+			titleNl = "G13 — Onverplicht fietspad",
+			text = "Met een snorfiets met verbrandingsmotor mag je dit fietspad gebruiken als je motor uit staat. Laat je de motor aan en is er geen verplicht fietspad of fiets/bromfietspad? Dan gebruik je de rijbaan.\n\nMet een elektrische snorfiets mag je dit pad ook met ingeschakelde motor gebruiken.",
+			signCode = "G13", captionNl = "RVV 1990, artikel 2b en artikel 5, lid 3.",
 		},
 	},
 }
