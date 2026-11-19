@@ -4,13 +4,14 @@ return {
 	titleNl = "Verkeerstekens",
 	sourceName = "RVV 1990 — bijlage 1 en verkeersregels",
 	sourceUrl = "https://wetten.overheid.nl/BWBR0004825/#Bijlage1",
-	article = "Bijlage 1 (B1, B2, B6, B7, G11, G12a, G13, C2, C13, C15) en artikelen 2, 2b, 5, 6, 15, 18, 20, 21, 62–64, 79, 84",
+	article = "Bijlage 1 (A1, A2, B1, B2, B6, B7, C2, C13, C15, G11, G12a, G13) en artikelen 2, 2b, 5, 6, 15, 18, 20, 21, 62–64, 66, 79, 84",
 	reviewStatus = "reviewed",
 	images = {},
 	questionIds = {
 		"sign_b6_01", "sign_b1_01", "sign_b7_01", "sign_b2_01",
 		"sign_g11_01", "sign_g12a_01", "sign_g13_01",
 		"sign_c2_01", "sign_c13_01", "sign_c15_01",
+		"sign_a1_50_01", "sign_a2_30_01", "sign_zone_30_01", "sign_end_zone_30_01",
 	},
 	sceneIds = {},
 	-- The owner's sign explanations, edited and checked against the RVV.
@@ -64,6 +65,26 @@ return {
 			titleNl = "C15 — Gesloten voor fiets en bromfiets",
 			text = "Dit bord sluit de weg af voor fietsers, bromfietsers, snorfietsers en bestuurders van gehandicaptenvoertuigen. Rijd je op een bromfiets met de motor uit? Dan geldt het verbod nog steeds.\n\nOp een gewone fiets mag je bij C13 wel doorrijden. Bij C15 mag dat niet.",
 			signCode = "C15", captionNl = "RVV 1990, bijlage 1 en artikelen 2b en 62.",
+		},
+		{
+			titleNl = "A1 — Maximumsnelheid",
+			text = "Het getal op A1 geeft een maximumsnelheid aan. Met een bromfiets op de rijbaan houd je je aan de laagste limiet: die op het bord of die voor je bromfiets.\n\nStaat er 50 op het bord, dan mag je op de rijbaan maximaal 45 km/uur rijden. Staat er 30, dan geldt voor jou maximaal 30 km/uur.",
+			signCode = "A1-50", captionNl = "RVV 1990, artikelen 20, 21 en 63b.",
+		},
+		{
+			titleNl = "A2 — Einde maximumsnelheid",
+			text = "Bij A2 eindigt de maximumsnelheid die op het bord staat. Kijk daarna welke limiet geldt voor je voertuig en het deel van de weg waar je rijdt.\n\nVoorbeeld: je passeert A2 met 30 op de rijbaan binnen de bebouwde kom. Geldt daar geen lagere limiet, dan mag je op je bromfiets maximaal 45 km/uur.",
+			signCode = "A2-30", captionNl = "RVV 1990, bijlage 1 en artikel 20.",
+		},
+		{
+			titleNl = "Begin Zone 30",
+			text = "Bij dit bord rijd je een zone in met een maximumsnelheid van 30 km/uur. De limiet geldt in de hele zone.\n\nVoorbeeld: je rijdt de zone in en slaat bij het volgende kruispunt rechtsaf. Je bent nog in de zone. Ook zonder nieuw snelheidsbord blijft 30 km/uur gelden.",
+			signCode = "A1-30-ZB", captionNl = "RVV 1990, artikel 66.",
+		},
+		{
+			titleNl = "Einde Zone 30",
+			text = "Bij dit bord verlaat je de Zone 30. De zonelimiet eindigt zodra je het bord passeert. Vanaf daar kijk je welke maximumsnelheid geldt voor je voertuig en de weg.",
+			signCode = "A2-30-ZE", captionNl = "RVV 1990, bijlage 1 en artikel 66.",
 		},
 	},
 }

@@ -1,6 +1,6 @@
 # Как будем работать с теорией
 
-Автор нидерландской теории — владелец проекта. Книга Voorrang помечена `CONCEPT` и имеет статус `awaiting_review`. Все 10 страниц Verkeerstekens имеют статус `reviewed`.
+Автор нидерландской теории — владелец проекта. Книга Voorrang помечена `CONCEPT` и имеет статус `awaiting_review`. Все 14 страниц Verkeerstekens имеют статус `reviewed`.
 
 Шесть страниц Voorrang со статусом `awaiting_review` находятся в [модуле теории Voorrang](../src/ReplicatedStorage/Theory/voorrang.lua). Сохранены [оригинал](../content/voorrang/01-owner-draft.nl.md), [согласованная редакция и источники](../content/voorrang/01-review.nl.md) и [инструкция по иллюстрациям](LESSON_02_RU.md).
 
@@ -9,6 +9,8 @@
 G11, G12a и G13 находятся в том же модуле. [Авторский текст о дорожках и источники](../content/verkeersborden/02-fietspaden-owner-draft.nl.md).
 
 C2, C13 и C15 идут после знаков дорожек. [Авторский текст о запретах въезда и источники](../content/verkeersborden/03-geslotenverklaringen-owner-draft.nl.md).
+
+A1, A2 и знаки начала и конца Zone 30 идут после запретов въезда. [Авторский текст о скоростных знаках и источники](../content/verkeersborden/04-snelheidsborden-owner-draft.nl.md).
 
 При расширении книги добавляйте страницы в `pages` её модуля. Для новой станции создайте модуль в `Theory` и одноимённый модуль в `Training`, затем добавьте идентификатор в `order` в `TopicContent`. Берите за образец формат `scene` из Voorrang или `sign` из Verkeerstekens. Идентификаторы в `questionIds` должны совпадать с порядком заданий в серверном модуле. Один раздел может объединять несколько учебных блоков.
 

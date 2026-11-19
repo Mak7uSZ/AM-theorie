@@ -297,7 +297,7 @@ expect(latest(p3, "Book").topicId == "verkeerstekens" and latest(p3, "Book").sig
 request(p3, "Finish")
 expect(not s3.topics.verkeerstekens.theoryRead, "Cannot finish signs book before last page")
 for _ = 2, #Catalog.topics.verkeerstekens.pages do request(p3, "Page", 1) end
-expect(latest(p3, "Book").signCode == "C15" and latest(p3, "Book").total == 10, "Signs book ends after the three new entry restrictions")
+expect(latest(p3, "Book").signCode == "A2-30-ZE" and latest(p3, "Book").total == 14, "Signs book ends with the end of Zone 30")
 request(p3, "Finish")
 expect(s3.topics.verkeerstekens.theoryRead and not s3.topics.voorrang.theoryRead, "Completing signs must not complete priority theory")
 move(p3, 7, 0); frames(5.3)
@@ -318,7 +318,7 @@ for index, card in ipairs(signCards) do
 		request(p3, "SignAnswer", card.correct, previousToken)
 		expect(s3.phase == "sign_question", "Old sign token cannot answer next card")
 	end
-	if index == 1 or card.signCode == "G13" or card.signCode == "C15" then
+	if index == 1 or card.signCode == "G13" or card.signCode == "C15" or card.signCode == "A2-30-ZE" then
 		request(p3, "SignAnswer", card.correct == 1 and 2 or 1)
 		expect(not latest(p3, "SignResult").correct, "Incorrect sign option must be graded false")
 		request(p3, "RetrySign")
@@ -332,9 +332,9 @@ for index, card in ipairs(signCards) do
 	previousToken = s3.token
 	if index < #signCards then request(p3, "NextSign") end
 end
-expect(s3.topics.verkeerstekens.trainingCompleted and s3.topics.verkeerstekens.bestCorrect == 10, "Completed sign round must record session best across all signs")
+expect(s3.topics.verkeerstekens.trainingCompleted and s3.topics.verkeerstekens.bestCorrect == 14, "Completed sign round must record session best across all signs")
 request(p3, "NextSign")
-expect(s3.phase == "sign_result" and s3.quizIndex == 10, "Final card must not advance out of range")
+expect(s3.phase == "sign_result" and s3.quizIndex == 14, "Final card must not advance out of range")
 request(p3, "Return")
 expect(latest(p3, "Lobby").topics.verkeerstekens.theoryRead and not latest(p3, "Lobby").topics.voorrang.theoryRead, "Progress packet must keep subjects separate")
 move(p, 7, -16); frames(5.3)

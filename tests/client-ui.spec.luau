@@ -148,12 +148,24 @@ local function descendant(node, name)
 	end
 end
 local signsTopic = contentForTest.topics.verkeerstekens
+local speedSignLabels = { ["A1-50"] = "50", ["A2-30"] = "30", ["A1-30-ZB"] = "30", ["A2-30-ZE"] = "30" }
 for index, signPage in ipairs(signsTopic.pages) do
 	emit("Book", { topicId = "verkeerstekens", page = index, total = #signsTopic.pages, titleNl = signPage.titleNl, text = signPage.text, signCode = signPage.signCode, captionNl = signPage.captionNl, reviewStatus = signsTopic.reviewStatus })
 	local sketch = descendant(panel, "RoadSignSketch")
 	expect(sketch and #sketch:GetChildren() > 3, "Every sign book page must render a real schematic without image ID")
 	expect(not status.Visible, "Signs book source row must not collide with global HUD")
 	expect(panel:FindFirstChild("BookSource").Text == "Bron: " .. signsTopic.sourceName, "Reviewed sign page should display its source")
+	local speedLabel = speedSignLabels[signPage.signCode]
+	if speedLabel then
+		local labels = {}
+		for _, child in ipairs(sketch:GetChildren()) do
+			if child:IsA("TextLabel") then labels[child.Text] = true end
+		end
+		expect(labels[speedLabel], "Speed sign should show the correct number")
+		if signPage.signCode == "A1-30-ZB" or signPage.signCode == "A2-30-ZE" then
+			expect(labels.ZONE, "Both zone signs should show the ZONE label")
+		end
+	end
 end
 local signCount = #signsTopic.questionIds
 emit("SignQuestion", { topicId = "verkeerstekens", token = 99, index = 1, total = signCount, signCode = "B6", options = { "One", "Two", "Three", "Four" } })

@@ -104,7 +104,7 @@
 | --- | --- | --- | --- |
 | 02.01 | Bordgroepen en onderborden | Собственный каталог: распознать, объяснить, применить | не начато |
 | 02.02 | Voorrangsborden: B1, B2, B6, B7 en overige B-borden | Вторая станция с авторским текстом, схемами и четырьмя карточками | Страницы B1/B2/B6/B7 сверены с RVV, впереди проверка в Studio |
-| 02.03 | Snelheidsborden en zones | Карточки: знак, категория транспорта, контекст | не начато |
+| 02.03 | Snelheidsborden en zones | Карточки на выбор скорости и границу зоны | A1, A2, начало и конец Zone 30 в книге и тренировке, впереди проверка в Studio |
 | 02.04 | Geslotenverklaringen en toegestane richtingen | Маршрут с выбором разрешённого направления | C2, C13 и C15 в книге и тренировке, впереди проверка в Studio |
 | 02.05 | Fietspaden en fiets/bromfietspaden | Выбор пути по знаку и категории транспорта | G11, G12a и G13 в книге и тренировке, впереди проверка в Studio |
 | 02.06 | Parkeer-, stop- en overige gebods- en verbodsborden | Ситуационные карточки с подзнаками | не начато |

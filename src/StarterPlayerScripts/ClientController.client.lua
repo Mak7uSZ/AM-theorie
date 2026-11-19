@@ -83,7 +83,42 @@ local function drawRoadSign(parent, code)
 		local corner = Instance.new("UICorner")
 		corner.CornerRadius, corner.Parent = UDim.new(0.5, 0), shape
 	end
-	if code == "B1" or code == "B2" then
+	if code == "A1-50" or code == "A2-30" or code == "A1-30-ZB" or code == "A2-30-ZE" then
+		local zonal = code == "A1-30-ZB" or code == "A2-30-ZE"
+		local ending = code == "A2-30" or code == "A2-30-ZE"
+		local grey = Color3.fromRGB(155, 155, 155)
+		local centerY, radius = 90, 84
+		if zonal then
+			rectangle(27, 7, 126, 166, black)
+			rectangle(30, 10, 120, 160, white)
+			local zone = text(root, "ZONE", UDim2.fromOffset(36, 17), UDim2.fromOffset(108, 24))
+			zone.Font, zone.TextColor3 = Enum.Font.GothamBold, ending and grey or black
+			centerY, radius = 94, 47
+		end
+
+		if ending and not zonal then
+			disk(90, centerY, radius, grey)
+			disk(90, centerY, radius - 1, white)
+		else
+			local rim = ending and grey or red
+			disk(90, centerY, radius, rim)
+			disk(90, centerY, radius * 0.97, white)
+			disk(90, centerY, radius * 0.93, rim)
+			disk(90, centerY, radius * 0.75, white)
+		end
+		local number = code == "A1-50" and "50" or "30"
+		local digits = text(root, number, UDim2.fromOffset(90 - radius * 0.75, centerY - radius * 0.45),
+			UDim2.fromOffset(radius * 1.5, radius * 0.9))
+		digits.Font, digits.TextColor3 = Enum.Font.GothamBold, ending and grey or black
+		digits:FindFirstChildOfClass("UITextSizeConstraint").MaxTextSize = zonal and 42 or 74
+		if ending then
+			local width, height, angle = 144, 4, -59
+			if zonal then width, height, angle = 189, 3, -53 end
+			for _, offset in ipairs({ -6, 0, 6 }) do
+				rectangle(90 + offset - width / 2, 90 - height / 2, width, height, black, angle)
+			end
+		end
+	elseif code == "B1" or code == "B2" then
 		rectangle(34, 34, 112, 112, black, 45)
 		rectangle(36, 36, 108, 108, white, 45)
 		rectangle(47, 47, 86, 86, Color3.fromRGB(250, 205, 35), 45)

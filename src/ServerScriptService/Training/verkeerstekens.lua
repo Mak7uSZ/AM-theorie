@@ -6,6 +6,7 @@ local descriptions = {
 }
 local routes = { "Op de rijbaan.", "Op het pad bij dit bord." }
 local access = { "Ja, ik mag hier inrijden.", "Nee, ik kies een andere route." }
+local speeds = { "30 km/uur", "45 km/uur", "50 km/uur" }
 
 return {
 	kind = "sign",
@@ -44,6 +45,27 @@ return {
 			id = "sign_c15_01", signCode = "C15", options = access, correct = 2,
 			promptNl = "Je wilt deze weg inrijden op je bromfiets met de motor uit. Bij de ingang staat alleen dit bord. Mag dat?",
 			explanationNl = "C15 geldt ook voor een bromfiets met uitgeschakelde motor. Het bord geldt bovendien voor gewone fietsen.",
+		},
+		{
+			id = "sign_a1_50_01", signCode = "A1-50", options = speeds, correct = 2,
+			promptNl = "Je rijdt op de rijbaan op een bromfiets met geel kenteken. Hoe hard mag je maximaal rijden bij dit bord?",
+			explanationNl = "Het bord geeft 50 km/uur aan. Voor je bromfiets geldt op de rijbaan het lagere maximum van 45 km/uur.",
+		},
+		{
+			id = "sign_a2_30_01", signCode = "A2-30", options = speeds, correct = 2,
+			promptNl = "Je passeert dit bord op de rijbaan met je bromfiets. Er geldt geen andere snelheidsbeperking. Wat is je maximum?",
+			explanationNl = "De aangegeven limiet van 30 km/uur eindigt. Je maximum op de rijbaan is nu 45 km/uur.",
+		},
+		{
+			id = "sign_zone_30_01", signCode = "A1-30-ZB", options = speeds, correct = 1,
+			promptNl = "Na dit bord sla je rechtsaf. Je passeert geen bord einde zone. Hoe hard mag je maximaal rijden?",
+			explanationNl = "De maximumsnelheid van 30 km/uur blijft binnen de zone gelden, ook als je afslaat.",
+		},
+		{
+			id = "sign_end_zone_30_01", signCode = "A2-30-ZE", correct = 2,
+			options = { "Pas bij het volgende kruispunt.", "Zodra ik dit bord passeer." },
+			promptNl = "Je rijdt in een Zone 30 en nadert dit bord. Wanneer eindigt de zone?",
+			explanationNl = "Je bent uit de zone zodra je dit bord passeert. Vanaf daar bepaal je welke limiet voor je voertuig en de weg geldt.",
 		},
 	},
 }
