@@ -78,6 +78,11 @@ local function drawRoadSign(parent, code)
 		shape.Rotation, shape.Parent = rotation or 0, root
 		return shape
 	end
+	local function disk(x, y, radius, color)
+		local shape = rectangle(x - radius, y - radius, 2 * radius, 2 * radius, color)
+		local corner = Instance.new("UICorner")
+		corner.CornerRadius, corner.Parent = UDim.new(0.5, 0), shape
+	end
 	if code == "B1" or code == "B2" then
 		rectangle(34, 34, 112, 112, black, 45)
 		rectangle(36, 36, 108, 108, white, 45)
@@ -114,25 +119,28 @@ local function drawRoadSign(parent, code)
 		local stop = text(root, "STOP", UDim2.fromScale(0.12, 0.33), UDim2.fromScale(0.76, 0.34))
 		stop.Font = Enum.Font.GothamBold
 		stop:FindFirstChildOfClass("UITextSizeConstraint").MaxTextSize = 40
-	elseif code == "G11" or code == "G12a" then
-		local function disk(x, y, radius, color)
-			local shape = rectangle(x - radius, y - radius, 2 * radius, 2 * radius, color)
-			local corner = Instance.new("UICorner")
-			corner.CornerRadius, corner.Parent = UDim.new(0.5, 0), shape
-		end
+	elseif code == "C2" then
+		disk(90, 90, 84, red)
+		disk(90, 90, 81, white)
+		disk(90, 90, 77, red)
+		rectangle(16, 75, 148, 30, white)
+	elseif code == "G11" or code == "G12a" or code == "C13" or code == "C15" then
+		local prohibitory = code == "C13" or code == "C15"
+		local face = prohibitory and white or blue
+		local symbol = prohibitory and black or white
 		local function drawCycle(y, factor, moped)
 			local left = 90 - 39 * factor
 			local right = 90 + 39 * factor
 			for _, x in ipairs({ left, right }) do
-				disk(x, y, 23 * factor, white)
-				disk(x, y, 18 * factor, blue)
+				disk(x, y, 23 * factor, symbol)
+				disk(x, y, 18 * factor, face)
 			end
 			local function line(x1, y1, x2, y2)
 				local dx, dy = x2 - x1, y2 - y1
 				local width = math.sqrt(dx * dx + dy * dy) * factor
 				local thickness = 5 * factor
 				rectangle(left + (x1 + x2) * factor / 2 - width / 2, y + (y1 + y2) * factor / 2 - thickness / 2,
-					width, thickness, white, math.deg(math.atan2(dy, dx)))
+					width, thickness, symbol, math.deg(math.atan2(dy, dx)))
 			end
 			line(0, 0, 19, -48)
 			line(18, -48, 28, -48)
@@ -151,14 +159,19 @@ local function drawRoadSign(parent, code)
 				line(53, -43, 73, -43)
 			end
 		end
-		disk(90, 90, 84, blue)
+		local rim = prohibitory and red or blue
+		disk(90, 90, 84, rim)
 		disk(90, 90, 81, white)
-		disk(90, 90, 77, blue)
+		disk(90, 90, 77, rim)
+		if prohibitory then disk(90, 90, 64, face) end
 		if code == "G12a" then
 			drawCycle(72, 0.73, true)
 			drawCycle(132, 0.73, false)
+		elseif code == "C15" then
+			drawCycle(70, 0.64, true)
+			drawCycle(123, 0.64, false)
 		else
-			drawCycle(108, 1, false)
+			drawCycle(108, prohibitory and 0.85 or 1, prohibitory)
 		end
 	elseif code == "G13" then
 		rectangle(6, 62, 168, 56, blue)

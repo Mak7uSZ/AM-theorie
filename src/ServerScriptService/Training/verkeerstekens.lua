@@ -5,6 +5,7 @@ local descriptions = {
 	"Stop; verleen voorrang aan bestuurders op de kruisende weg",
 }
 local routes = { "Op de rijbaan.", "Op het pad bij dit bord." }
+local access = { "Ja, ik mag hier inrijden.", "Nee, ik kies een andere route." }
 
 return {
 	kind = "sign",
@@ -27,6 +28,22 @@ return {
 			id = "sign_g13_01", signCode = "G13", options = routes, correct = 1,
 			promptNl = "Je rijdt op een snorfiets en laat de verbrandingsmotor aan. Naast de rijbaan ligt alleen dit pad. Waar rijd je?",
 			explanationNl = "Met draaiende verbrandingsmotor mag je bij G13 niet het pad op. Zet je de motor uit, dan mag je het pad wel gebruiken.",
+		},
+		{
+			id = "sign_c2_01", signCode = "C2", options = access, correct = 2,
+			promptNl = "Je rijdt op een bromfiets. Dit bord is naar jou gericht en heeft geen onderbord. Mag je deze straat vanaf hier inrijden?",
+			explanationNl = "C2 sluit de ingang af in jouw rijrichting. Dat geldt ook voor een bromfiets.",
+		},
+		{
+			id = "sign_c13_01", signCode = "C13", correct = 1,
+			options = { "De fietser.", "De bromfietser.", "Allebei." },
+			promptNl = "Een fietser en een bromfietser met een werkende elektromotor naderen dit bord. Wie mag de weg inrijden?",
+			explanationNl = "C13 geldt ook voor een bromfiets met een werkende elektromotor. Een gewone fiets mag hier wel rijden.",
+		},
+		{
+			id = "sign_c15_01", signCode = "C15", options = access, correct = 2,
+			promptNl = "Je wilt deze weg inrijden op je bromfiets met de motor uit. Bij de ingang staat alleen dit bord. Mag dat?",
+			explanationNl = "C15 geldt ook voor een bromfiets met uitgeschakelde motor. Het bord geldt bovendien voor gewone fietsen.",
 		},
 	},
 }

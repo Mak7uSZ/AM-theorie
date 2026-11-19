@@ -4,10 +4,14 @@ return {
 	titleNl = "Verkeerstekens",
 	sourceName = "RVV 1990 — bijlage 1 en verkeersregels",
 	sourceUrl = "https://wetten.overheid.nl/BWBR0004825/#Bijlage1",
-	article = "Bijlage 1 (B1, B2, B6, B7, G11, G12a, G13) en artikelen 2b, 5, 6, 15, 18, 20, 21, 62–64, 79, 84",
+	article = "Bijlage 1 (B1, B2, B6, B7, G11, G12a, G13, C2, C13, C15) en artikelen 2, 2b, 5, 6, 15, 18, 20, 21, 62–64, 79, 84",
 	reviewStatus = "reviewed",
 	images = {},
-	questionIds = { "sign_b6_01", "sign_b1_01", "sign_b7_01", "sign_b2_01", "sign_g11_01", "sign_g12a_01", "sign_g13_01" },
+	questionIds = {
+		"sign_b6_01", "sign_b1_01", "sign_b7_01", "sign_b2_01",
+		"sign_g11_01", "sign_g12a_01", "sign_g13_01",
+		"sign_c2_01", "sign_c13_01", "sign_c15_01",
+	},
 	sceneIds = {},
 	-- The owner's sign explanations, edited and checked against the RVV.
 	pages = {
@@ -45,6 +49,21 @@ return {
 			titleNl = "G13 — Onverplicht fietspad",
 			text = "Met een snorfiets met verbrandingsmotor mag je dit fietspad gebruiken als je motor uit staat. Laat je de motor aan en is er geen verplicht fietspad of fiets/bromfietspad? Dan gebruik je de rijbaan.\n\nMet een elektrische snorfiets mag je dit pad ook met ingeschakelde motor gebruiken.",
 			signCode = "G13", captionNl = "RVV 1990, artikel 2b en artikel 5, lid 3.",
+		},
+		{
+			titleNl = "C2 — Eenrichtingsweg",
+			text = "Zie je bord C2 aan het begin van een straat? Dan mag je die eenrichtingsweg vanaf jouw kant niet inrijden. Dat geldt ook op een bromfiets of een fiets. Kijk of een onderbord een uitzondering aangeeft.",
+			signCode = "C2", captionNl = "RVV 1990, bijlage 1 en artikel 62.",
+		},
+		{
+			titleNl = "C13 — Gesloten met werkende motor",
+			text = "Dit bord sluit de weg af voor bromfietsen, snorfietsen en gehandicaptenvoertuigen met een werkende motor. Een werkende elektromotor telt ook. Op een gewone fiets mag je hier wel rijden.\n\nLoop je naast je bromfiets en neem je die aan de hand mee? Dan volg je de regels voor voetgangers.",
+			signCode = "C13", captionNl = "RVV 1990, bijlage 1 en artikel 2, lid 2.",
+		},
+		{
+			titleNl = "C15 — Gesloten voor fiets en bromfiets",
+			text = "Dit bord sluit de weg af voor fietsers, bromfietsers, snorfietsers en bestuurders van gehandicaptenvoertuigen. Rijd je op een bromfiets met de motor uit? Dan geldt het verbod nog steeds.\n\nOp een gewone fiets mag je bij C13 wel doorrijden. Bij C15 mag dat niet.",
+			signCode = "C15", captionNl = "RVV 1990, bijlage 1 en artikelen 2b en 62.",
 		},
 	},
 }

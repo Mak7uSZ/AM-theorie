@@ -155,9 +155,10 @@ for index, signPage in ipairs(signsTopic.pages) do
 	expect(not status.Visible, "Signs book source row must not collide with global HUD")
 	expect(panel:FindFirstChild("BookSource").Text == "Bron: " .. signsTopic.sourceName, "Reviewed sign page should display its source")
 end
-emit("SignQuestion", { topicId = "verkeerstekens", token = 99, index = 1, total = 4, signCode = "B6", options = { "One", "Two", "Three", "Four" } })
+local signCount = #signsTopic.questionIds
+emit("SignQuestion", { topicId = "verkeerstekens", token = 99, index = 1, total = signCount, signCode = "B6", options = { "One", "Two", "Three", "Four" } })
 expect(mode == "sign_question" and token == 99 and descendant(panel, "RoadSignSketch"), "Sign quiz must show its schematic and session token")
-expect(panel:FindFirstChild("PanelTitle").Text == signsTopic.titleNl .. " | 1/4", "Sign quiz uses the title of the current topic")
+expect(panel:FindFirstChild("PanelTitle").Text == signsTopic.titleNl .. " | 1/" .. signCount, "Sign quiz uses the title of the current topic")
 expect(not firstPerson and not decisionAnswers.Visible and not status.Visible, "Sign cards must not leave first-person driving overlays active")
 local clicked = 0
 for _, child in ipairs(panel:GetChildren()) do
@@ -168,16 +169,16 @@ for _, child in ipairs(panel:GetChildren()) do
 	end
 end
 expect(clicked == 4, "Sign question must have four options")
-emit("SignResult", { correct = true, signCode = "B6", labelNl = "Test label", index = 1, total = 4, correctCount = 1 })
+emit("SignResult", { correct = true, signCode = "B6", labelNl = "Test label", index = 1, total = signCount, correctCount = 1 })
 expect(mode == "sign_result" and panel.Visible and not ridingHud.Visible, "Recognition feedback must keep controls clean")
 local pathPrompt = "Je rijdt op een snorfiets. Waar rijd je?"
-emit("SignQuestion", { topicId = "verkeerstekens", token = 100, index = 7, total = 7, signCode = "G13", promptNl = pathPrompt, options = { "Op de rijbaan.", "Op het pad." } })
+emit("SignQuestion", { topicId = "verkeerstekens", token = 100, index = 7, total = signCount, signCode = "G13", promptNl = pathPrompt, options = { "Op de rijbaan.", "Op het pad." } })
 local prompt = panel:FindFirstChild("PanelBody")
 local sketch = descendant(panel, "RoadSignSketch")
 expect(prompt.Text == pathPrompt and sketch, "A route card must show its own question and drawing")
 expect(prompt.Position.Y.Scale + prompt.Size.Y.Scale < sketch.Parent.Position.Y.Scale, "The route prompt must fit above the sign")
 local pathExplanation = "Voorbeeld van uitleg na het antwoord."
-emit("SignResult", { correct = false, signCode = "G13", labelNl = "Op de rijbaan.", explanationNl = pathExplanation, index = 7, total = 7, correctCount = 6 })
+emit("SignResult", { correct = false, signCode = "G13", labelNl = "Op de rijbaan.", explanationNl = pathExplanation, index = 7, total = signCount, correctCount = 6 })
 expect(panel:FindFirstChild("PanelBody").Text:find(pathExplanation, 1, true), "A route result includes its explanation")
 emit("Lobby", { topics = { voorrang = { theoryRead = false }, verkeerstekens = { theoryRead = true, trainingCompleted = true, bestCorrect = 4 } } })
 expect(topicProgress.verkeerstekens.bestCorrect == 4 and not topicProgress.voorrang.theoryRead, "Client progress must preserve independent topics")
